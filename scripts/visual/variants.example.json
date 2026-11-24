@@ -1,0 +1,14 @@
+{
+  "width": 960,
+  "height": 540,
+  "defaults": {
+    "mode": "fluid",
+    "render": "raymarch",
+    "ticks": [180, 210, 240],
+    "camera": {"theta": 0.38, "phi": 1.14, "distance": 11.5}
+  },
+  "variants": [
+    {"id": "reference"},
+    {"id": "parameters", "settings": {"density": 1.05, "detailStrength": 1.35, "heightShear": 1.2}}
+  ]
+}
