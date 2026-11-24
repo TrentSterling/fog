@@ -1,0 +1,50 @@
+name: Mirror verified FogLab build to gh-pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: foglab-branch-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source and publication branch
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Set up Node
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+      - name: Verify build
+        run: |
+          npm test
+          npm run build
+          npm run check
+      - name: Publish only built assets to gh-pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin gh-pages
+          git worktree add ../foglab-pages gh-pages
+          find ../foglab-pages -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf -- {} +
+          cp -a dist/. ../foglab-pages/
+          cd ../foglab-pages
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --all
+          if ! git diff --cached --quiet; then
+            git commit -m 'Publish verified FogLab build from main'
+            git push origin HEAD:gh-pages
+          else
+            echo 'Published assets already match the verified build.'
+          fi
