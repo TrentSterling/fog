@@ -49,6 +49,7 @@
     uniform sampler2D uCurl;
     uniform sampler2D uDivergence;
     uniform sampler2D uNoise;
+    uniform sampler2D uObstacles;
     uniform vec2 uTexel;
     uniform float uWorld;
     uniform float uDt;
@@ -60,13 +61,41 @@
     uniform float uStrength;
     uniform float uFirstPressure;
     uniform int uActorCount;
+    uniform int uWakeStyle;
+    uniform int uSegmentCount;
     uniform vec4 uActors[8];
     uniform vec4 uMotion[8];
+    uniform vec4 uSegments[8];
+    uniform vec4 uSegmentParams[8];
+    uniform vec4 uSegmentAux[8];
 
     ${FOG_BANK_GLSL}
 
     vec2 safeUV(vec2 uv) {
       return clamp(uv, uTexel * 0.5, vec2(1.0) - uTexel * 0.5);
+    }
+
+    float solidAt(vec2 uv) {
+      if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) return 1.0;
+      return step(0.5, texture2D(uObstacles, safeUV(uv)).r);
+    }
+
+    // Stop at the first solid cell along the backtrace. Merely rejecting a
+    // solid endpoint lets fast flow tunnel across an obstacle to its far side.
+    // With dt <= 0.05 s, speed <= 10 m/s and N <= 512, 32 half-cell samples
+    // cover the longest permitted characteristic in this 32 m field.
+    vec2 traceUV(vec2 origin, vec2 target) {
+      target = safeUV(target);
+      vec2 cells = abs(target - origin) / uTexel;
+      float count = clamp(ceil(max(cells.x, cells.y) * 2.0), 1.0, 32.0);
+      vec2 previous = origin;
+      for (int i = 1; i <= 32; i++) {
+        if (float(i) > count) break;
+        vec2 probe = mix(origin, target, float(i) / count);
+        if (solidAt(probe) > 0.5) return previous;
+        previous = probe;
+      }
+      return target;
     }
 
     // Explicit bilinear backtracing is independent of filter state and is also
@@ -80,7 +109,11 @@
       vec4 b = texture2D(field, safeUV(p + vec2(uTexel.x, 0.0)));
       vec4 c = texture2D(field, safeUV(p + vec2(0.0, uTexel.y)));
       vec4 d = texture2D(field, safeUV(p + uTexel));
-      return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+      vec4 weights = vec4((1.0-f.x)*(1.0-f.y),f.x*(1.0-f.y),(1.0-f.x)*f.y,f.x*f.y);
+      weights *= vec4(1.0-solidAt(p),1.0-solidAt(p+vec2(uTexel.x,0.0)),
+                      1.0-solidAt(p+vec2(0.0,uTexel.y)),1.0-solidAt(p+uTexel));
+      float total = dot(weights,vec4(1.0));
+      return total > 0.00001 ? (a*weights.x+b*weights.y+c*weights.z+d*weights.w)/total : texture2D(field,vUv);
     }
 
     float equilibrium(vec2 uv) {
@@ -101,9 +134,11 @@
     }
 
     vec2 boundVelocity(vec2 velocity, vec2 uv) {
-      // No-through-flow outer walls; tangential velocity is left free.
-      if (uv.x < uTexel.x || uv.x > 1.0 - uTexel.x) velocity.x = 0.0;
-      if (uv.y < uTexel.y || uv.y > 1.0 - uTexel.y) velocity.y = 0.0;
+      // Cell-centred free-slip approximation: block normal flow next to a
+      // rasterized rock or domain wall, leaving tangential velocity free.
+      if (solidAt(uv) > 0.5) return vec2(0.0);
+      if (solidAt(uv-vec2(uTexel.x,0.0)) + solidAt(uv+vec2(uTexel.x,0.0)) > 0.5) velocity.x = 0.0;
+      if (solidAt(uv-vec2(0.0,uTexel.y)) + solidAt(uv+vec2(0.0,uTexel.y)) > 0.5) velocity.y = 0.0;
       float speed = length(velocity);
       return velocity * min(1.0, 10.0 / max(speed, 0.0001));
     }
@@ -112,6 +147,12 @@
       vec2 ab = finish - start;
       float t = clamp(dot(p - start, ab) / max(dot(ab, ab), 0.00001), 0.0, 1.0);
       return length(p - start - ab * t);
+    }
+
+    vec2 capsuleOffset(vec2 p, vec4 segment) {
+      vec2 ab = segment.zw - segment.xy;
+      float t = clamp(dot(p-segment.xy,ab)/max(dot(ab,ab),0.00001),0.0,1.0);
+      return p-segment.xy-ab*t;
     }
 
     vec2 addActorForces(vec2 velocity, vec2 p) {
@@ -142,12 +183,31 @@
         float falloff = max(radius * radius * 1.1, 0.01);
         vec2 pair = vec2(-dl.y, dl.x) * exp(-dot(dl, dl) / falloff)
                   - vec2(-dr.y, dr.x) * exp(-dot(dr, dr) / falloff);
-        velocity += pair * (speed / radius) * uSwirl * power * uDt * 4.6;
+        if (uWakeStyle == 0) {
+          velocity += pair * (speed / radius) * uSwirl * power * uDt * 4.6;
+        } else if (uWakeStyle == 2) {
+          velocity += vec2(-d.y,d.x)/max(len,0.08) * speed * uSwirl * power * uDt * 4.6 * body;
+        }
+      }
+      // Slashes are swept capsules with a direction and a signed swirl, not
+      // a chain of point stamps. All force terms are accelerations times dt.
+      for (int i = 0; i < 8; i++) {
+        if (i >= uSegmentCount) break;
+        vec4 params = uSegmentParams[i];
+        vec2 offset = capsuleOffset(p,uSegments[i]);
+        float radius = max(params.x,0.12),distance = length(offset);
+        float falloff = exp(-dot(offset,offset)/(radius*radius*0.72));
+        vec2 motion = params.zw;
+        motion *= min(1.0,12.0/max(length(motion),0.001));
+        vec2 tangent = vec2(-offset.y,offset.x)/max(distance,0.08);
+        velocity += (motion*4.5 + tangent*uSegmentAux[i].x*4.0)
+                    * falloff * max(params.y,0.0) * uStrength * uDt;
       }
       return velocity;
     }
 
     vec2 densityAndEnergy(vec4 previous, vec2 p, vec2 uv) {
+      if (solidAt(uv) > 0.5) return vec2(0.0);
       float density = previous.b;
       float energy = previous.a * exp(-uDt / max(uPersistence * 0.65, 0.2));
       float rest = equilibrium(uv);
@@ -176,6 +236,18 @@
         density += ring * min(speed, 5.0) * power * uDt * 0.16 * clamp(previous.b, 0.0, 1.2);
         energy = max(energy, max(clearing * 0.75, ring) * min(1.0, power));
       }
+      for (int i = 0; i < 8; i++) {
+        if (i >= uSegmentCount) break;
+        vec4 params = uSegmentParams[i];
+        float radius = max(params.x,0.12),power = max(params.y,0.0)*uStrength;
+        float d = length(capsuleOffset(p,uSegments[i]));
+        float clearing = exp(-pow(d/(radius*0.8),4.0));
+        float desired = rest*(1.0-0.995*clearing);
+        density = mix(density,min(density,desired),1.0-exp(-uDt*32.0*power));
+        float shoulder = exp(-pow((d-radius)/(radius*0.32),2.0));
+        density += shoulder*min(length(params.zw),8.0)*power*uDt*0.12*clamp(previous.b,0.0,1.2);
+        energy = max(energy,max(clearing,shoulder)*min(power,1.0));
+      }
       return vec2(clamp(density, 0.0, 1.65), clamp(energy, 0.0, 1.0));
     }
   `;
@@ -183,14 +255,16 @@
   const FRAGMENTS = {
     initialize: `
       void main() {
-        gl_FragColor = vec4(ambientVelocity(vUv), equilibrium(vUv), 0.0);
+        if (solidAt(vUv) > 0.5) { gl_FragColor = vec4(0.0); return; }
+        gl_FragColor = vec4(boundVelocity(ambientVelocity(vUv),vUv), equilibrium(vUv), 0.0);
       }
     `,
     zero: `void main() { gl_FragColor = vec4(0.0); }`,
     hybrid: `
       void main() {
+        if (solidAt(vUv) > 0.5) { gl_FragColor = vec4(0.0); return; }
         vec2 velocity = texture2D(uState, vUv).rg;
-        vec4 previous = bilerp(uState, vUv - uDt * velocity / uWorld);
+        vec4 previous = bilerp(uState, traceUV(vUv,vUv - uDt * velocity / uWorld));
         velocity = mix(previous.rg, ambientVelocity(vUv), 1.0 - exp(-uDt * 0.7));
         velocity = addActorForces(velocity, (vUv - 0.5) * uWorld);
         velocity = boundVelocity(velocity, vUv);
@@ -200,14 +274,16 @@
     `,
     advectVelocity: `
       void main() {
+        if (solidAt(vUv) > 0.5) { gl_FragColor = vec4(0.0); return; }
         vec2 velocity = texture2D(uVelocity, vUv).rg;
-        velocity = bilerp(uVelocity, vUv - uDt * velocity / uWorld).rg;
+        velocity = bilerp(uVelocity, traceUV(vUv,vUv - uDt * velocity / uWorld)).rg;
         velocity *= exp(-uDt * 0.095);
         gl_FragColor = vec4(boundVelocity(velocity, vUv), 0.0, 0.0);
       }
     `,
     force: `
       void main() {
+        if (solidAt(vUv) > 0.5) { gl_FragColor = vec4(0.0); return; }
         vec2 velocity = texture2D(uVelocity, vUv).rg;
         velocity = mix(velocity, ambientVelocity(vUv), 1.0 - exp(-uDt * 0.12));
         velocity = addActorForces(velocity, (vUv - 0.5) * uWorld);
@@ -216,16 +292,24 @@
     `,
     curl: `
       void main() {
+        if (solidAt(vUv) > 0.5) { gl_FragColor = vec4(0.0); return; }
+        vec2 center = texture2D(uVelocity,vUv).rg;
         float l = texture2D(uVelocity, safeUV(vUv - vec2(uTexel.x, 0.0))).g;
         float r = texture2D(uVelocity, safeUV(vUv + vec2(uTexel.x, 0.0))).g;
         float b = texture2D(uVelocity, safeUV(vUv - vec2(0.0, uTexel.y))).r;
         float t = texture2D(uVelocity, safeUV(vUv + vec2(0.0, uTexel.y))).r;
+        // Free-slip ghost values preserve the tangent component at a wall.
+        if (solidAt(vUv-vec2(uTexel.x,0.0)) > 0.5) l = center.y;
+        if (solidAt(vUv+vec2(uTexel.x,0.0)) > 0.5) r = center.y;
+        if (solidAt(vUv-vec2(0.0,uTexel.y)) > 0.5) b = center.x;
+        if (solidAt(vUv+vec2(0.0,uTexel.y)) > 0.5) t = center.x;
         float curl = (r - l - t + b) / (2.0 * uWorld * uTexel.x);
         gl_FragColor = vec4(curl, 0.0, 0.0, 1.0);
       }
     `,
     confinement: `
       void main() {
+        if (solidAt(vUv) > 0.5) { gl_FragColor = vec4(0.0); return; }
         float l = abs(texture2D(uCurl, safeUV(vUv - vec2(uTexel.x, 0.0))).r);
         float r = abs(texture2D(uCurl, safeUV(vUv + vec2(uTexel.x, 0.0))).r);
         float b = abs(texture2D(uCurl, safeUV(vUv - vec2(0.0, uTexel.y))).r);
@@ -242,39 +326,51 @@
     `,
     divergence: `
       void main() {
+        if (solidAt(vUv) > 0.5) { gl_FragColor = vec4(0.0); return; }
         vec2 center = texture2D(uVelocity, vUv).rg;
         float l = texture2D(uVelocity, safeUV(vUv - vec2(uTexel.x, 0.0))).r;
         float r = texture2D(uVelocity, safeUV(vUv + vec2(uTexel.x, 0.0))).r;
         float b = texture2D(uVelocity, safeUV(vUv - vec2(0.0, uTexel.y))).g;
         float t = texture2D(uVelocity, safeUV(vUv + vec2(0.0, uTexel.y))).g;
-        if (vUv.x < uTexel.x) l = -center.x;
-        if (vUv.x > 1.0 - uTexel.x) r = -center.x;
-        if (vUv.y < uTexel.y) b = -center.y;
-        if (vUv.y > 1.0 - uTexel.y) t = -center.y;
+        if (solidAt(vUv-vec2(uTexel.x,0.0)) > 0.5) l = -center.x;
+        if (solidAt(vUv+vec2(uTexel.x,0.0)) > 0.5) r = -center.x;
+        if (solidAt(vUv-vec2(0.0,uTexel.y)) > 0.5) b = -center.y;
+        if (solidAt(vUv+vec2(0.0,uTexel.y)) > 0.5) t = -center.y;
         float div = (r - l + t - b) / (2.0 * uWorld * uTexel.x);
         gl_FragColor = vec4(div, 0.0, 0.0, 1.0);
       }
     `,
     pressure: `
       void main() {
+        if (solidAt(vUv) > 0.5) { gl_FragColor = vec4(0.0); return; }
         float l = texture2D(uPressure, safeUV(vUv - vec2(uTexel.x, 0.0))).r;
         float r = texture2D(uPressure, safeUV(vUv + vec2(uTexel.x, 0.0))).r;
         float b = texture2D(uPressure, safeUV(vUv - vec2(0.0, uTexel.y))).r;
         float t = texture2D(uPressure, safeUV(vUv + vec2(0.0, uTexel.y))).r;
         float divergence = texture2D(uDivergence, vUv).r;
         float h = uWorld * uTexel.x;
-        // Zero initial guess without an extra clear pass. Subsequent Jacobi
-        // iterations solve Laplacian(p)=div(v), with Neumann outer walls.
-        float p = ((l + r + b + t) * (1.0 - uFirstPressure) - divergence * h * h) * 0.25;
+        vec4 open = vec4(1.0-solidAt(vUv-vec2(uTexel.x,0.0)),1.0-solidAt(vUv+vec2(uTexel.x,0.0)),
+                         1.0-solidAt(vUv-vec2(0.0,uTexel.y)),1.0-solidAt(vUv+vec2(0.0,uTexel.y)));
+        float neighbors = dot(open,vec4(1.0));
+        // Excluding solid faces imposes zero normal pressure derivative. This
+        // is a masked Poisson equation, not pressure multiplied by a mask.
+        float sum = dot(vec4(l,r,b,t),open)*(1.0-uFirstPressure);
+        float p = neighbors > 0.5 ? (sum-divergence*h*h)/neighbors : 0.0;
         gl_FragColor = vec4(p, 0.0, 0.0, 1.0);
       }
     `,
     project: `
       void main() {
+        if (solidAt(vUv) > 0.5) { gl_FragColor = vec4(0.0); return; }
         float l = texture2D(uPressure, safeUV(vUv - vec2(uTexel.x, 0.0))).r;
         float r = texture2D(uPressure, safeUV(vUv + vec2(uTexel.x, 0.0))).r;
         float b = texture2D(uPressure, safeUV(vUv - vec2(0.0, uTexel.y))).r;
         float t = texture2D(uPressure, safeUV(vUv + vec2(0.0, uTexel.y))).r;
+        float center = texture2D(uPressure,vUv).r;
+        if (solidAt(vUv-vec2(uTexel.x,0.0)) > 0.5) l = center;
+        if (solidAt(vUv+vec2(uTexel.x,0.0)) > 0.5) r = center;
+        if (solidAt(vUv-vec2(0.0,uTexel.y)) > 0.5) b = center;
+        if (solidAt(vUv+vec2(0.0,uTexel.y)) > 0.5) t = center;
         vec2 velocity = texture2D(uVelocity, vUv).rg;
         velocity -= vec2(r - l, t - b) / (2.0 * uWorld * uTexel.x);
         gl_FragColor = vec4(boundVelocity(velocity, vUv), 0.0, 0.0);
@@ -282,8 +378,9 @@
     `,
     advectDensity: `
       void main() {
+        if (solidAt(vUv) > 0.5) { gl_FragColor = vec4(0.0); return; }
         vec2 velocity = texture2D(uVelocity, vUv).rg;
-        vec4 previous = bilerp(uState, vUv - uDt * velocity / uWorld);
+        vec4 previous = bilerp(uState, traceUV(vUv,vUv - uDt * velocity / uWorld));
         vec2 de = densityAndEnergy(previous, (vUv - 0.5) * uWorld, vUv);
         gl_FragColor = vec4(velocity, de);
       }
@@ -310,18 +407,25 @@
       this._fallback = new THREE.DataTexture(new Uint8Array([0, 0, 210, 0]), 1, 1, THREE.RGBAFormat);
       this._fallback.needsUpdate = true;
       this._fallback.colorSpace = THREE.NoColorSpace;
+      this._obstacles = [];
+      this._obstaclesEnabled = true;
+      this._obstacleKey = '';
+      this._rebuildObstacleTexture();
 
       this.uniforms = {
         uState: { value: this._fallback }, uVelocity: { value: this._fallback },
         uPressure: { value: this._fallback }, uCurl: { value: this._fallback },
-        uDivergence: { value: this._fallback }, uNoise: { value: noiseTexture },
+        uDivergence: { value: this._fallback }, uNoise: { value: noiseTexture }, uObstacles: { value: this._obstacleTexture },
         uTexel: { value: new THREE.Vector2(1 / this.resolution, 1 / this.resolution) },
         uWorld: { value: this.worldSize }, uDt: { value: 1 / 30 },
         uTime: { value: 0 }, uWind: { value: 0.4 }, uSwirl: { value: 0.8 },
         uVorticity: { value: 0.4 }, uPersistence: { value: 5 }, uStrength: { value: 1 },
-        uFirstPressure: { value: 1 }, uActorCount: { value: 0 },
+        uFirstPressure: { value: 1 }, uActorCount: { value: 0 }, uWakeStyle: { value: 0 }, uSegmentCount: { value: 0 },
         uActors: { value: Array.from({ length: 8 }, () => new THREE.Vector4()) },
-        uMotion: { value: Array.from({ length: 8 }, () => new THREE.Vector4()) }
+        uMotion: { value: Array.from({ length: 8 }, () => new THREE.Vector4()) },
+        uSegments: { value: Array.from({ length: 8 }, () => new THREE.Vector4()) },
+        uSegmentParams: { value: Array.from({ length: 8 }, () => new THREE.Vector4()) },
+        uSegmentAux: { value: Array.from({ length: 8 }, () => new THREE.Vector4()) }
       };
       this.materials = {};
       for (const name of Object.keys(FRAGMENTS)) {
@@ -356,7 +460,43 @@
     get pressureTexture() { return this._pressure[this._pressureIndex]?.texture || null; }
     get curlTexture() { return this._curl?.texture || null; }
     get divergenceTexture() { return this._divergence?.texture || null; }
-    get memoryBytes() { return this._targets.length * this.resolution * this.resolution * 8; }
+    get obstacleTexture() { return this._obstacleTexture; }
+    get targetMemoryBytes() { return this._targets.length * this.resolution * this.resolution * 8; }
+    get obstacleMemoryBytes() { return this._obstacleMask.byteLength; }
+    get memoryBytes() { return this.targetMemoryBytes + this.obstacleMemoryBytes; }
+
+    _rebuildObstacleTexture() {
+      this._obstacleMask = window.FogLab.FieldUtils.buildObstacleMask(this.resolution,this.worldSize,this._obstacles,this._obstaclesEnabled);
+      if (this._obstacleTexture?.image.width === this.resolution) {
+        this._obstacleTexture.image.data = this._obstacleMask;
+        this._obstacleTexture.needsUpdate = true;
+        return;
+      }
+      this._obstacleTexture?.dispose();
+      this._obstacleTexture = new THREE.DataTexture(this._obstacleMask,this.resolution,this.resolution,THREE.RedFormat,THREE.UnsignedByteType);
+      this._obstacleTexture.minFilter = this._obstacleTexture.magFilter = THREE.NearestFilter;
+      this._obstacleTexture.wrapS = this._obstacleTexture.wrapT = THREE.ClampToEdgeWrapping;
+      this._obstacleTexture.colorSpace = THREE.NoColorSpace;
+      this._obstacleTexture.generateMipmaps = false;
+      this._obstacleTexture.needsUpdate = true;
+      this._obstacleTexture.name = 'FogLab '+this.mode+' solid footprints';
+      if (this.uniforms) this.uniforms.uObstacles.value = this._obstacleTexture;
+    }
+
+    setObstacles(obstacles = [], enabled = true) {
+      if (this.disposed) return;
+      const next = obstacles.filter(o=>o && [o.x,o.z,o.radius].every(Number.isFinite) && o.radius>0)
+        .map(o=>({x:o.x,z:o.z,radius:o.radius}));
+      const key = JSON.stringify([!!enabled,next]);
+      if (key === this._obstacleKey) return;
+      this._obstacleKey = key;
+      this._obstacles = next;
+      this._obstaclesEnabled = !!enabled;
+      this._rebuildObstacleTexture();
+      // A changed boundary invalidates the old pressure and can cover occupied
+      // cells. Restart rather than retaining fog inside a newly solid rock.
+      this.reset();
+    }
 
     _target(name, linear = false) {
       const target = new THREE.WebGLRenderTarget(this.resolution, this.resolution, {
@@ -422,6 +562,7 @@
         this.renderer.xr.enabled = false;
         this._stateIndex = this._velocityIndex = this._pressureIndex = 0;
         this.uniforms.uActorCount.value = 0;
+        this.uniforms.uSegmentCount.value = 0;
         this.uniforms.uTime.value = 0;
         for (const target of this._state) this._draw('initialize', target);
         for (const target of this._velocity) this._draw('initialize', target);
@@ -436,18 +577,19 @@
 
     setResolution(resolution) {
       const n = Math.max(32, Math.min(512, Math.round(resolution)));
-      if (n === this.resolution || !this.supported || this.disposed) return;
+      if (n === this.resolution || this.disposed) return;
       for (const target of this._targets) target.dispose();
       this._targets = [];
       this._state = []; this._velocity = []; this._pressure = [];
       this._curl = this._divergence = null;
       this.resolution = n;
       this.uniforms.uTexel.value.set(1 / n, 1 / n);
-      this._allocate();
+      this._rebuildObstacleTexture();
+      if (this.supported) this._allocate();
       this.reset();
     }
 
-    step(dt, time, interactors = [], settings = {}) {
+    step(dt, time, interactors = [], settings = {}, segments = []) {
       if (!this.supported || this.disposed || !(dt > 0)) { this.passCount = 0; return; }
       const u = this.uniforms;
       u.uDt.value = Math.min(dt, 1 / 20);
@@ -457,12 +599,20 @@
       u.uVorticity.value = settings.vorticity ?? 0.4;
       u.uPersistence.value = settings.persistence ?? 5;
       u.uStrength.value = settings.strength ?? 1;
+      u.uWakeStyle.value = settings.wakeStyle === 'radial' ? 1 : settings.wakeStyle === 'tangential' ? 2 : 0;
       const count = Math.min(8, interactors.length);
       u.uActorCount.value = count;
       for (let i = 0; i < count; i++) {
         const a = interactors[i];
         u.uActors.value[i].set(a.x || 0, a.z || 0, a.radius ?? settings.radius ?? 1.15, a.strength ?? 1);
         u.uMotion.value[i].set(a.vx || 0, a.vz || 0, 0, 0);
+      }
+      u.uSegmentCount.value = Math.min(8,segments.length);
+      for (let i = 0; i < u.uSegmentCount.value; i++) {
+        const segment = segments[i];
+        u.uSegments.value[i].set(segment.x0||0,segment.z0||0,segment.x1||0,segment.z1||0);
+        u.uSegmentParams.value[i].set(segment.radius??0.45,segment.strength??1,segment.vx||0,segment.vz||0);
+        u.uSegmentAux.value[i].set(segment.swirl??1,0,0,0);
       }
       const saved = this._saveRenderer();
       this.passCount = 0;
@@ -526,6 +676,7 @@
       const state = read(this._state[this._stateIndex]);
       let finite = true, densityMin = Infinity, densityMax = -Infinity;
       let densitySum = 0, speedMax = 0, speedSum = 0, disturbedTexels = 0;
+      let solidCells = 0, solidDensityMax = 0, solidSpeedMax = 0, obstacleBoundaryMaxNormalSpeed = 0;
       for (let i = 0; i < state.length; i += 4) {
         const speed = Math.hypot(state[i], state[i + 1]);
         finite = finite && Number.isFinite(speed) && Number.isFinite(state[i + 2]) && Number.isFinite(state[i + 3]);
@@ -535,29 +686,46 @@
         speedMax = Math.max(speedMax, speed);
         speedSum += speed;
         if (state[i + 3] > 0.1) disturbedTexels++;
+        const cell = i/4, x = cell%n, y = Math.floor(cell/n);
+        if (this._obstacleMask[cell]) {
+          solidCells++;
+          solidDensityMax = Math.max(solidDensityMax,state[i+2]);
+          solidSpeedMax = Math.max(solidSpeedMax,speed);
+        } else {
+          if ((x>0 && this._obstacleMask[cell-1]) || (x<n-1 && this._obstacleMask[cell+1]))
+            obstacleBoundaryMaxNormalSpeed = Math.max(obstacleBoundaryMaxNormalSpeed,Math.abs(state[i]));
+          if ((y>0 && this._obstacleMask[cell-n]) || (y<n-1 && this._obstacleMask[cell+n]))
+            obstacleBoundaryMaxNormalSpeed = Math.max(obstacleBoundaryMaxNormalSpeed,Math.abs(state[i+1]));
+        }
       }
       const result = {
         supported: true, mode: this.mode, resolution: n, finite,
         densityMin, densityMax, densityMean: densitySum / (n * n),
         speedMax, speedMean: speedSum / (n * n), disturbedTexels,
-        passCount: this.passCount, memoryBytes: this.memoryBytes
+        passCount: this.passCount, memoryBytes: this.memoryBytes,
+        solidCells, solidDensityMax, solidSpeedMax, obstacleBoundaryMaxNormalSpeed
       };
       if (this.mode === 'fluid') {
         const before = read(this._divergence);
         const velocity = read(this._velocity[this._velocityIndex]);
-        let preSquared = 0, postSquared = 0;
+        let preSquared = 0, postSquared = 0, fluidCells = 0;
         const h = this.worldSize / n;
-        // Interior statistic avoids interpreting the one-cell wall treatment
-        // as a fluid obstacle benchmark. The simulated wall is still enforced.
-        for (let y = 1; y < n - 1; y++) for (let x = 1; x < n - 1; x++) {
-          const i = (y * n + x) * 4;
-          const div = (velocity[i + 4] - velocity[i - 4]
-                    + velocity[i + n * 4 + 1] - velocity[i - n * 4 + 1]) / (2 * h);
+        // Measure the same reflected-normal divergence used by the shader,
+        // including fluid cells bordering solid footprints and domain walls.
+        for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+          const cell = y*n+x, i = cell*4;
+          if (this._obstacleMask[cell]) continue;
+          const l = x===0 || this._obstacleMask[cell-1] ? -velocity[i] : velocity[i-4];
+          const r = x===n-1 || this._obstacleMask[cell+1] ? -velocity[i] : velocity[i+4];
+          const b = y===0 || this._obstacleMask[cell-n] ? -velocity[i+1] : velocity[i-n*4+1];
+          const t = y===n-1 || this._obstacleMask[cell+n] ? -velocity[i+1] : velocity[i+n*4+1];
+          const div = (r-l+t-b)/(2*h);
           preSquared += before[i] ** 2;
           postSquared += div ** 2;
+          fluidCells++;
         }
-        result.divergenceBeforeRMS = Math.sqrt(preSquared / ((n - 2) ** 2));
-        result.divergenceAfterRMS = Math.sqrt(postSquared / ((n - 2) ** 2));
+        result.divergenceBeforeRMS = Math.sqrt(preSquared / Math.max(fluidCells,1));
+        result.divergenceAfterRMS = Math.sqrt(postSquared / Math.max(fluidCells,1));
         result.divergenceReduction = 1 - result.divergenceAfterRMS / Math.max(result.divergenceBeforeRMS, 1e-8);
       }
       return result;
@@ -570,6 +738,7 @@
       for (const material of Object.values(this.materials)) material.dispose();
       this._quad.geometry.dispose();
       this._fallback.dispose();
+      this._obstacleTexture.dispose();
     }
   }
 

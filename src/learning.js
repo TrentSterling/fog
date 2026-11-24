@@ -11,6 +11,14 @@
   let activeGuide = '';
 
   const explanations = {
+    backends: {
+      title: 'CPU / GPU · same 64² fluid grid',
+      text: 'The CPU solver is on the left, GPU on the right. Both receive the same walk, slash, and landing inputs. CPU solve time and upload bytes are shown separately. Use Solo for performance measurements.'
+    },
+    obstacles: {
+      title: 'Solid pillars · stir, slash, and land',
+      text: 'The solver treats these pillar footprints as walls. Press X to sweep the fog and Space to jump. Inspect the solid obstacle mask to see its grid boundaries.'
+    },
     motion: {
       title: 'Compare motion · same mesh renderer',
       text: 'Analytical, Hybrid, and Stable fluids share the camera and one mesh renderer. Follow each wake after the wanderer passes: watch its shape, spread, and persistence.'
@@ -41,7 +49,7 @@
     const message = !ready
       ? 'Preparing the experiment controls…'
       : unsupportedGPU
-        ? 'This device can render Analytical fog, but it cannot run the texture-based GPU comparisons. You can still read the guide and explore the source.'
+        ? 'This device can run CPU and Analytical fog, but it cannot run the texture-based GPU comparisons. You can still read the guide and explore the source.'
         : !app.renderReady
           ? 'Live rendering is unavailable here. You can still prepare an experiment, copy its link, or download the HTML to run elsewhere.'
           : '';
@@ -94,6 +102,7 @@
       swirl: 0.8, persistence: 5.2, wind: 0.32, pressure: 18, vorticity: 0.38,
       terrain: 'flat', lighting: 'reference', environment: 'reference',
       paused: false, debug: 'beauty', wireframe: false, meshLayers: 1
+      ,obstacles:true,obstacleCourse:false,wakeStyle:'paired',densityProfile:'billows',heightMode:'world',detailStrength:1,heightShear:1,lightingModel:'directional'
     });
     Object.assign(preset.view, {
       mode: 'fluid', renderer: 'mesh', layout: 'single',
@@ -116,6 +125,12 @@
       } else if (name === 'rendering') {
         preset.view.layout = 'compare';
         preset.view.compareRenderer = 'raymarch';
+      } else if (name === 'backends') {
+        preset.settings.quality='low';Object.assign(preset.settings,{resolution:64,raySteps:20,renderScale:.6});
+        preset.view.mode='cpu';preset.view.compareMode='fluid';preset.view.layout='compare';
+      } else if (name === 'obstacles') {
+        preset.settings.obstacleCourse=true;preset.view.renderer='raymarch';
+        preset.camera={theta:.25,phi:.83,distance:16,mode:0};
       } else if (name === 'density') {
         preset.settings.debug = 'density';
         preset.view.renderer = 'raymarch';

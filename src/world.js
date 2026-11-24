@@ -156,6 +156,15 @@
       {x:-13,z:0,y:.24,sx:.9,sy:.52,sz:.8,ry:.3}
     ];
     instanced(rockGeo,material('#343630',{flatShading:true}),referenceRockSpecs,true,true,referenceEnvironment);
+    const courseSpecs=[{x:3.1,z:4.4,radius:.72},{x:-3.2,z:1.1,radius:.8},{x:.5,z:-1.7,radius:.68}];
+    const course=new THREE.Group();course.name='Optional flow obstacle course';course.visible=false;scene.add(course);
+    const courseMat=material('#58645e',{roughness:.78});
+    const courseRimMat=material('#b1d8c9',{metalness:.25,roughness:.5});
+    const courseMeshes=courseSpecs.map(s=>{
+      const group=new THREE.Group();group.position.set(s.x,terrainHeight(s.x,s.z),s.z);
+      const cylinder=new THREE.Mesh(own(new THREE.CylinderGeometry(s.radius,s.radius,2.25,24)),courseMat);cylinder.position.y=1.125;cylinder.castShadow=cylinder.receiveShadow=true;group.add(cylinder);
+      const cap=new THREE.Mesh(own(new THREE.CylinderGeometry(s.radius+.035,s.radius+.035,.09,24)),courseRimMat);cap.position.y=2.27;group.add(cap);course.add(group);return group;
+    });
     const rockSpecs=[], mossSpecs=[];
     for(let i=0;i<74;i++) {
       let x,z;
@@ -399,6 +408,30 @@
     for(let i=0;i<8;i++)characters.push(makeCharacter(i));
     const player=characters[0].group;
 
+    // The blade and its short ribbon use the exact world-space sweep that
+    // drives the simulation. Geometry is illustrative, not a second force.
+    const blade=new THREE.Mesh(own(new THREE.BoxGeometry(.075,.035,1.55)),material('#e8f5df',{metalness:.5,roughness:.25}));
+    blade.castShadow=true;blade.visible=false;scene.add(blade);
+    const ribbonGeo=own(new THREE.BufferGeometry());
+    const ribbonPositions=new Float32Array(24*6*3);
+    ribbonGeo.setAttribute('position',new THREE.BufferAttribute(ribbonPositions,3));ribbonGeo.setDrawRange(0,0);
+    const ribbon=new THREE.Mesh(ribbonGeo,own(new THREE.MeshBasicMaterial({color:'#b8e8d7',transparent:true,opacity:.28,side:THREE.DoubleSide,depthWrite:false})));
+    ribbon.frustumCulled=false;scene.add(ribbon);
+    let slashHistory=[];
+    function recordSlash(segments,time){
+      if(segments.length>=3)slashHistory.push({inner:segments[0],outer:segments[2],time});
+      slashHistory=slashHistory.filter(s=>time-s.time<.22).slice(-24);
+    }
+    function getObstacles(){
+      const rocks=environmentMode==='reference'?referenceRockSpecs:rockSpecs;
+      // Circular footprints approximate the rocks; small dressing/ruins are
+      // deliberately omitted. The obstacle debug view shows the exact mask.
+      const result=rocks.filter(s=>Math.abs(s.x)<16&&Math.abs(s.z)<16).map(s=>({x:s.x,z:s.z,radius:.80*Math.max(s.sx,s.sz)}));
+      if(course.visible)result.push(...courseSpecs);
+      return result;
+    }
+    function setObstacleCourse(enabled){course.visible=!!enabled;}
+
     const fireflyCount=38;
     const fireflyGeo=own(new THREE.IcosahedronGeometry(.022,0));
     const fireflyMat=material('#d1eeb4',{emissive:'#a1d486',emissiveIntensity:1.2});
@@ -411,6 +444,7 @@
       for(let i=0;i<groundPos.count;i++)groundPos.setY(i,terrainHeight(groundPos.getX(i),groundPos.getZ(i)));
       groundPos.needsUpdate=true; groundGeometry.computeVertexNormals();
       placements.forEach(p=>p.write());
+      courseMeshes.forEach((p,i)=>p.position.y=terrainHeight(courseSpecs[i].x,courseSpecs[i].z));
       characters.forEach(p=>{p.group.position.y=terrainHeight(p.group.position.x,p.group.position.z);});
     }
 
@@ -457,6 +491,17 @@
       if(settings.lighting&&settings.lighting!==lightingMode)setLighting(settings.lighting);
       const nextTerrain=settings.terrain==='flat'?0:1;
       if(settings.terrain!==undefined&&nextTerrain!==terrainMode)setTerrain(settings.terrain);
+      setObstacleCourse(settings.obstacleCourse);
+      const first=actors[0],slashing=first&&first.slashAge<.42;
+      blade.visible=!!slashing;
+      if(slashing){const angle=first.slashAngle??first.heading??0;blade.rotation.y=angle;blade.position.set(first.x-Math.sin(angle)*1.2,terrainHeight(first.x,first.z)+(first.jump||0)+.84,first.z-Math.cos(angle)*1.2);}
+      slashHistory=slashHistory.filter(s=>time>=s.time&&time-s.time<.22);
+      let ri=0;
+      for(const s of slashHistory){
+        const a=s.inner,b=s.outer,y=terrainHeight((b.x0+b.x1)*.5,(b.z0+b.z1)*.5)+b.y;
+        for(const p of [[a.x0,a.z0],[b.x0,b.z0],[b.x1,b.z1],[a.x0,a.z0],[b.x1,b.z1],[a.x1,a.z1]]){ribbonPositions[ri++]=p[0];ribbonPositions[ri++]=y;ribbonPositions[ri++]=p[1];}
+      }
+      ribbonGeo.attributes.position.needsUpdate=true;ribbonGeo.setDrawRange(0,ri/3);ribbon.visible=ri>0;
       characters.forEach((p,i)=>{
         const a=actors[i];p.group.visible=!!a;if(!a)return;
         const speed=Math.hypot(a.vx||0,a.vz||0);
@@ -470,7 +515,7 @@
         p.group.rotation.y=p.heading;
         const phase=time*(speed>3?12:8.5)+i*.9, walk=Math.min(speed/2.3,1);
         if(environmentMode==='reference'){
-          const r=p.referenceModel, swing=clamp(Number.isFinite(a.swing)?a.swing:jump/.35,0,1);
+          const r=p.referenceModel, swing=a.slashAge<.42?Math.sin(a.slashAge/.42*Math.PI):clamp(jump/.8,0,1)*.35;
           for(let side=0;side<2;side++){
             const gait=Math.sin(phase+side*Math.PI);
             r.legs[side].rotation.x=gait*.60*walk;
@@ -507,7 +552,7 @@
     setEnvironment('reference');setLighting('reference');
     update(0,1/60,[{x:0,z:2,vx:0,vz:0}],{});
     return {
-      scene,player,terrainHeight,terrainGLSL,update,setTerrain,setLighting,setEnvironment,
+      scene,player,terrainHeight,terrainGLSL,update,setTerrain,setLighting,setEnvironment,getObstacles,setObstacleCourse,recordSlash,
       cameraHint:{position:[8.5,7.9,12.5],target:[5.05,1.6,3.76]},
       dispose(){disposables.forEach(x=>x.dispose&&x.dispose());scene.clear();}
     };

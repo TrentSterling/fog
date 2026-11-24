@@ -4,7 +4,7 @@
   $('meshLayers').onchange=e=>{if(F.app)F.app.settings.meshLayers=+e.target.value;};
   $('diagnosticButton').onclick=()=>{
     const out=$('diagnosticResult');out.hidden=false;
-    if(!F.app?.renderReady){out.textContent='GPU diagnostics need a running WebGL 2 context. Learning, presets, sharing, and shader export remain available.';return;}
+    if(!F.app?.renderReady){out.textContent='Live field diagnostics need a running WebGL 2 context. Learning, presets, sharing, and shader export remain available.';return;}
     try{
       const result=F.app.diagnostics();
       out.textContent=JSON.stringify(result,null,2);

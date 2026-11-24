@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const read = name => readFile(resolve(root, name), 'utf8');
-const modules = ['presets.js', 'world.js', 'sim.js', 'fog.js', 'app.js', 'lab-tools.js', 'learning.js'];
+const modules = ['presets.js', 'field-utils.js', 'interactions.js', 'world.js', 'sim.js', 'cpu-solver.js', 'cpu-sim.js', 'fog.js', 'app.js', 'lab-tools.js', 'learning.js'];
 const [template, style, three, threeLicense, license, ...source] = await Promise.all([
   read('src/template.html'), read('src/style.css'), read('vendor/three.cjs'),
   read('vendor/three-LICENSE.txt'), read('LICENSE'), ...modules.map(name => read('src/' + name))
@@ -16,7 +16,7 @@ const sourceBlock = source.map((text, i) => `\n/* Source: src/${modules[i]} */\n
 const replacements = {
   '/*__STYLE__*/': style,
   '/*__THREE__*/': inlineScript(`/* Three.js r180 · MIT\n${threeLicense}\n*/\n(function () { const exports = {};\n${three}\nwindow.THREE = exports;\n})();`),
-  '/*__APP__*/': inlineScript(`\n/* FogLab 0.1.0\n${license}\n*/\n${sourceBlock}`)
+  '/*__APP__*/': inlineScript(`\n/* FogLab 0.2.0\n${license}\n*/\n${sourceBlock}`)
 };
 let html = template;
 for (const [placeholder, contents] of Object.entries(replacements)) {
@@ -37,7 +37,7 @@ await Promise.all([
   copyFile(resolve(root, 'assets/foglab-preview.png'), resolve(dist, 'assets/foglab-preview.png'))
 ]);
 const manifest = {
-  name: 'FogLab', version: '0.1.0', three: 'r180',
+  name: 'FogLab', version: '0.2.0', three: 'r180',
   htmlBytes: Buffer.byteLength(html),
   sha256: createHash('sha256').update(html).digest('hex'),
   modules: modules.map(name => 'src/' + name)

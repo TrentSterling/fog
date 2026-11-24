@@ -1,8 +1,8 @@
 {
   "name": "foglab",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Three motion models, interchangeable renderers, and an interactive ground-fog study in Three.js.",
+  "description": "CPU and GPU fluid simulation, interactive wakes and obstacles, and interchangeable fog renderers in Three.js.",
   "license": "MIT",
   "author": "Trent Sterling",
   "homepage": "https://tront.xyz/fog/",

@@ -1,14 +1,22 @@
 # FogLab
 
-Interactive ground fog you can take apart. Three motion models share a test world and interchangeable mesh and volume renderers.
+Interactive ground fog you can take apart. Analytical motion, Hybrid, GPU fluids, and CPU fluids share a test world and interchangeable mesh and volume renderers.
 
-**Version 0.1.0** · WebGL 2 · Three.js r180 · MIT
+**Version 0.2.0** · WebGL 2 · Three.js r180 · MIT
 
 [Release destination](https://tront.xyz/fog/) · [Standalone HTML destination](https://tront.xyz/fog/FogLab.html) · [How it works](docs/how-it-works.md)
 
 ![Gold mannequin walking through reactive ground fog on the neutral test stage](assets/foglab-preview.png)
 
 *Preview captured from the actual Three.js scene and shaders through native software OpenGL.*
+
+## New in 0.2
+
+- A real **CPU Stable Fluids solver**, using typed arrays and the same renderers as the GPU solver. The CPU / GPU guide compares matching 64² grids.
+- **Static obstacle boundaries** in transport and projection, with a visible pillar course and obstacle-mask inspection.
+- **Swept blade impulses** and a jump that triggers a pulse on landing.
+- Independent **column / billow density**, **world ceiling / terrain-following height**, and **ambient / directional lighting** controls.
+- Separate radial, tangential, and paired wake forces, alongside the existing vorticity confinement control.
 
 ## What to try
 
@@ -43,7 +51,9 @@ For an existing checkout on Windows, open PowerShell in the repository, run `git
 | Orbit | Left drag |
 | Stir with a brush | Right drag, or Shift + drag |
 | Zoom | Scroll wheel |
-| Radial interaction pulse | Space or Pulse button |
+| Jump; pulse on landing | Space or Jump button |
+| Swept blade slash | X or Slash button |
+| Radial interaction pulse | F or Pulse button |
 | Pause/resume | P |
 | Advance one simulation tick | Step button while paused |
 | Reset the fields and actors | R |
@@ -51,15 +61,16 @@ For an existing checkout on Windows, open PowerShell in the repository, run `git
 | Cycle the camera | C |
 | Hide/show the interface | H |
 
-Movement takes over from auto walk. Touch dragging orbits the camera; the Pulse button remains available. Presets, image capture, shader export, and optional GPU diagnostics are available in the interface.
+Movement takes over from auto walk. Touch dragging orbits the camera; Jump, Slash, and Pulse buttons remain available. Presets, image capture, shader export, and optional GPU diagnostics are available in the interface.
 
-## The three motion models
+## Motion models and execution
 
 | Model | Persistent state | Work per simulation update | Useful for |
 | --- | --- | --- | --- |
 | Analytical | Up to 24 shared trail samples on the CPU | No state-update render passes | Studying geometry and UV deformation without a solver |
-| Hybrid | A pair of RGBA16F textures | One fullscreen state pass | Persistent advected wakes without pressure projection |
-| Stable fluids | Eight RGBA16F textures | `P + 7` passes with confinement; `P + 6` without | Comparing projected flow against the cheaper approximations |
+| Hybrid | A pair of RGBA16F textures plus an R8 obstacle mask | One fullscreen state pass | Persistent advected wakes without pressure projection |
+| GPU fluids | Eight RGBA16F textures plus an R8 obstacle mask | `P + 7` passes with confinement; `P + 6` without | Comparing projected flow against the cheaper approximations |
+| CPU fluids | Float32 typed arrays plus uploaded field textures | CPU advection and Jacobi projection; zero GPU simulation passes | Exploring CPU cost and sharing a solver with gameplay tools |
 
 `P` is the pressure-iteration setting. At the initial 18 iterations with confinement enabled, the fluid backend performs **25 passes per 30 Hz update**. These counts exclude initialization, the opaque scene, fog rendering, and compositing. Analytical rendering still performs shader work; zero simulation passes does not mean zero cost. Implementation: [sim.js](src/sim.js) and [fog.js](src/fog.js).
 
@@ -67,16 +78,19 @@ Movement takes over from auto walk. Touch dragging orbits the camera; the Pulse 
 
 This is an original visual experiment inspired by [the ground-fog reference video](https://www.youtube.com/watch?v=Sm8x4lOGOYE). It is **not a reconstruction of Nintendo's implementation**, and it does not include Nintendo assets or shaders.
 
-The fluid solver is horizontal and two-dimensional. Height and billows are reconstructed during rendering. Hills and rocks affect visibility, but they are not obstacles in the velocity solve. Density is deliberately cleared, replenished, and shaped for the effect, so this is not a mass-conserving physical smoke model. MacCormack advection, a 3D solver, and WebXR are not implemented.
+The fluid solver is horizontal and two-dimensional. Height and billows are reconstructed during rendering. Rock footprints and optional pillars are static solid cells in both fluid solvers. Pressure uses solid-neighbor boundaries, velocity cannot pass normally through a wall, and backtraces stop before entering solids. Rock footprints are circular approximations; small rocks can disappear at coarse grid resolution. Hills affect visible height but are not velocity barriers. Analytical only masks solids; Hybrid has transport boundaries but no pressure solve. Density is deliberately cleared, replenished, and shaped for the effect, so this is not a mass-conserving physical smoke model. MacCormack advection, a 3D solver, and WebXR are not implemented.
 
-Hybrid and Stable fluids require renderable half-float targets through `EXT_color_buffer_float`. When that capability is absent, the application exposes Analytical mode instead. A working WebGL 2 context is still required.
+Hybrid and Stable fluids require renderable half-float targets through `EXT_color_buffer_float`. When that capability is absent, CPU fluids and Analytical remain available. A working WebGL 2 context is still required.
 
-The performance panel reports the current device and view. GPU timing covers the whole sampled frame when timer queries are available; the fallback is explicitly labeled **CPU submission time**. A/B views add rendering work, and the 30 Hz simulation can step zero or more times per display frame. Use Solo and a fixed preset when investigating cost. This release makes no Quest frame-rate claim.
+The performance panel reports the current device and view. GPU timing covers the whole sampled frame when timer queries are available; the fallback is explicitly labeled **CPU frame time (simulation, scene updates, and draw submission)**. A/B views add rendering work, and the 30 Hz simulation can step zero or more times per display frame. Use Solo and a fixed preset when investigating cost. CPU solve plus packing is shown separately in milliseconds per tick. Upload bytes are scheduled texture payload, not a transfer-time measurement; GPU rendering is still required. The CPU solver runs on the main thread, so begin at 64² and increase the grid only when your device has enough headroom. This release makes no Quest frame-rate claim.
 
 ## Source map
 
 | File | Responsibility |
 | --- | --- |
+| [src/cpu-solver.js](src/cpu-solver.js), [src/cpu-sim.js](src/cpu-sim.js) | CPU solver and Three.js texture adapter |
+| [src/field-utils.js](src/field-utils.js) | Shared obstacle rasterization |
+| [src/interactions.js](src/interactions.js) | Swept blade sources and jump/landing events |
 | [src/sim.js](src/sim.js) | GPU motion backends, shared initial fog-bank recipe, diagnostics |
 | [src/fog.js](src/fog.js) | Analytical field sampling, mesh/shell/volume rendering, compositing |
 | [src/world.js](src/world.js) | Terrain, neutral stage, mannequin, optional forest |

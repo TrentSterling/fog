@@ -107,3 +107,18 @@ test('file-open sharing uses canonical hosting; web sharing uses the current ori
   assert.ok(P.buildShareURL(value,'http://localhost:8080/fog/index.html').startsWith('http://localhost:8080/fog/index.html#preset='));
   assert.ok(P.buildShareURL(value,undefined).startsWith('https://tront.xyz/fog/#preset='));
 });
+
+test('v0.2 CPU, obstacles and shape choices survive a shared link',()=>{
+  const value=P.defaultPreset();
+  Object.assign(value.settings,{obstacles:false,obstacleCourse:true,wakeStyle:'tangential',densityProfile:'column',heightMode:'terrain',detailStrength:.4,heightShear:1.3,lightingModel:'ambient',debug:'obstacles'});
+  Object.assign(value.view,{mode:'cpu',layout:'compare',compareMode:'fluid'});
+  const restored=P.decodeHash(P.encodeHash(value));
+  assert.deepEqual(json(restored),json(value));
+  for(const settings of [{obstacles:'false'},{obstacleCourse:1},{heightMode:'valleySimulation'},{wakeStyle:'unknown'}])rejects(()=>P.validatePreset({...minimal(),settings}));
+});
+
+
+test('three-way view keeps its selected card on a visible backend',()=>{
+  const preset=P.validatePreset({...minimal(),view:{mode:'cpu',layout:'triple'}});
+  assert.equal(preset.view.mode,'fluid');
+});

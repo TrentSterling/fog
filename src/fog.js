@@ -23,17 +23,22 @@
   `;
 
   const COMMON = `
-    uniform sampler2D uNoise, uField, uDepth, uAux;
+    uniform sampler2D uNoise, uField, uDepth, uAux, uObstacle;
     uniform float uTime,uHeight,uDensity,uRadius,uStrength,uSwirl,uPersistence,uWind;
-    uniform float uNear,uFar,uContribution;
-    uniform int uMode,uTrailCount,uDebug;
+    uniform float uNear,uFar,uContribution,uDetailStrength,uHeightShear;
+    uniform int uMode,uTrailCount,uDebug,uDensityProfile,uHeightMode,uLightingModel,uObstacles,uWakeStyle;
     uniform vec2 uResolution;
     uniform vec4 uSurfaceRelief;
     uniform vec3 uTint,uCamPos;
-    uniform vec4 uTrails[24],uTrailVels[24];
+    uniform vec4 uTrails[24],uTrailVels[24],uTrailShape[24];
+    float terrainHeight(vec2 p);
     ${BANK}
     float linearDepth(float d){return uNear*uFar/(uFar-d*(uFar-uNear));}
     vec2 perpendicular(vec2 p){return vec2(-p.y,p.x);}
+    float solidAt(vec2 p){
+      if(uObstacles==0)return 0.0;
+      return step(0.5,texture2D(uObstacle,p/32.0+0.5).r);
+    }
     float fieldEdge(vec2 p){
       // Rounded corners keep the finite simulation domain from reading as a
       // rectangular white carpet in an overhead inspection view.
@@ -41,6 +46,7 @@
       return 1.0-smoothstep(13.0,16.0,boundary);
     }
     vec4 sampleField(vec2 p){
+      if(solidAt(p)>0.5)return vec4(0.0);
       if(uMode>0){return texture2D(uField,p/32.0+0.5);}
       float hole=0.0,lift=0.0;vec2 motion=vec2(0.0);
       for(int i=0;i<24;i++){
@@ -48,8 +54,17 @@
         vec4 tr=uTrails[i];
         float age=max(tr.z,0.0);
         float decay=exp(-age/max(uPersistence*0.58,0.15))*tr.w;
-        float radius=max(0.15,uRadius)*(1.0+0.075*age);
-        vec2 d=p-tr.xy;
+        vec4 shape=uTrailShape[i];
+        float radius=max(0.15,shape.z>0.0?shape.z:uRadius)*(1.0+0.075*age);
+        vec2 center=tr.xy;
+        if(shape.w>0.5){
+          // Explicit flag distinguishes a capsule from a circle, including
+          // segments whose start lies exactly on a world axis or at the origin.
+          vec2 segment=tr.xy-shape.xy;
+          float along=clamp(dot(p-shape.xy,segment)/max(dot(segment,segment),0.000001),0.0,1.0);
+          center=shape.xy+segment*along;
+        }
+        vec2 d=p-center;
         float r2=dot(d,d)/(radius*radius);
         if(r2>16.0)continue;
         float r=sqrt(r2);
@@ -62,7 +77,19 @@
         dir=dir/max(speed,0.001);
         float side=dot(d,perpendicular(dir));
         float signSide=side>=0.0?1.0:-1.0;
-        motion+=perpendicular(d)*edge*signSide*uSwirl*min(speed,4.0)*0.26;
+        if(uWakeStyle==0||shape.w>0.5){
+          // Preserve the original paired reconstruction. Swept blade stamps
+          // retain their own curl independently of the actor wake selector.
+          motion+=perpendicular(d)*edge*signSide*uSwirl*min(speed,4.0)*0.26;
+        }else{
+          // Match solver style conventions: radial keeps outward push and
+          // entrainment; tangential adds a single-signed circulation. These
+          // remain reconstructed history fields, not integrated fluid forces.
+          float body=exp(-r2/0.58)*decay;
+          float len=max(length(d),0.08);
+          motion+=d/len*min(speed,4.0)*0.28*body;
+          if(uWakeStyle==2)motion+=perpendicular(d)/len*min(speed,4.0)*uSwirl*0.46*body;
+        }
         motion+=dir*core*min(speed,5.0)*0.18;
       }
       motion=clamp(motion,vec2(-4.0),vec2(4.0));
@@ -76,18 +103,22 @@
     // These erode and fold a bank; they cannot create fog where field.b is zero.
     // Two staggered phases keep local flow from stretching indefinitely.
     float cloudNoise(vec2 p,vec4 field,float level){
+      if(uDetailStrength<=0.0)return 0.5;
       vec2 drift=vec2(uTime*0.0022,uTime*0.0011)*uWind;
       vec2 flow=(texture2D(uNoise,p*0.045+drift*0.4).ba*2.0-1.0)*(0.08+min(uSwirl,1.5)*0.045);
       flow+=clamp(field.xy,vec2(-5.0),vec2(5.0))*0.045;
       float phase=fract(uTime*0.17);
-      vec2 q=p*0.135+drift+vec2(level*0.065,-level*0.080);
+      float shear=uDensityProfile==0?uHeightShear:0.0;
+      vec2 q=p*0.135+drift+vec2(level*0.065,-level*0.080)*shear;
       float a=texture2D(uNoise,q-flow*phase).g;
       float b=texture2D(uNoise,q-flow*fract(phase+0.5)).g;
       float medium=mix(a,b,abs(phase*2.0-1.0));
       return clamp((medium-0.5)*1.65+0.5,0.0,1.0);
     }
+    float detailDensity(float n){return 1.0+(n-0.5)*0.64*uDetailStrength;}
     float fogTop(vec2 p,vec4 field){
-      // A WORLD-space upper envelope lets hills break through the fog.
+      // World mode lets hills break through the upper envelope. Terrain mode
+      // translates the same local shape by the height of the ground beneath it.
       // Density sets the bank. Medium contours round its surface, while wake
       // energy raises occupied shoulders instead of making halos in clear air.
       float body=pow(clamp(field.b/1.50,0.0,1.15),0.62);
@@ -95,18 +126,19 @@
       // Single sheets need gentler geometry than a volume to avoid folded
       // silhouettes. The same profile supplies their positions and normals;
       // concentration modulation remains fully detailed in every renderer.
-      float contour=(cloudNoise(p,field,0.68)*2.0-1.0)*uSurfaceRelief.x*sqrt(occupied);
+      float contour=(cloudNoise(p,field,0.68)*2.0-1.0)*uSurfaceRelief.x*sqrt(occupied)*uDetailStrength;
       float shoulder=field.a*occupied*uSurfaceRelief.y*min(uSwirl,1.5);
-      return uHeight*(uSurfaceRelief.z+uSurfaceRelief.w*body+contour)+shoulder;
+      float base=uHeightMode==1?terrainHeight(p):0.0;
+      return base+uHeight*(uSurfaceRelief.z+uSurfaceRelief.w*body+contour)+shoulder;
     }
-    vec3 fogSurfaceNormal(vec2 p,vec4 field){
+    vec3 fogSurfaceNormal(vec2 p,vec4 field,float layer){
       const float e=0.32;
       vec4 a,b,c,d;
       if(uMode>0){
-        a=texture2D(uField,(p-vec2(e,0.0))/32.0+0.5);
-        b=texture2D(uField,(p+vec2(e,0.0))/32.0+0.5);
-        c=texture2D(uField,(p-vec2(0.0,e))/32.0+0.5);
-        d=texture2D(uField,(p+vec2(0.0,e))/32.0+0.5);
+        a=sampleField(p-vec2(e,0.0));
+        b=sampleField(p+vec2(e,0.0));
+        c=sampleField(p-vec2(0.0,e));
+        d=sampleField(p+vec2(0.0,e));
       }else{
         // Lighting uses the bank gradient and current clearing ratio. It does
         // not repeat the 24-stamp history reconstruction for every neighbour.
@@ -116,9 +148,20 @@
         b=vec4(field.xy,fogBankDensity(q+vec2(e,0.0))*ratio,field.a);
         c=vec4(field.xy,fogBankDensity(q-vec2(0.0,e))*ratio,field.a);
         d=vec4(field.xy,fogBankDensity(q+vec2(0.0,e))*ratio,field.a);
+        if(uObstacles>0){
+          a*=1.0-solidAt(p-vec2(e,0.0));b*=1.0-solidAt(p+vec2(e,0.0));
+          c*=1.0-solidAt(p-vec2(0.0,e));d*=1.0-solidAt(p+vec2(0.0,e));
+        }
       }
-      return normalize(vec3(fogTop(p-vec2(e,0.0),a)-fogTop(p+vec2(e,0.0),b),2.0*e,
-        fogTop(p-vec2(0.0,e),c)-fogTop(p+vec2(0.0,e),d)));
+      vec4 heights=vec4(fogTop(p-vec2(e,0.0),a),fogTop(p+vec2(e,0.0),b),
+        fogTop(p-vec2(0.0,e),c),fogTop(p+vec2(0.0,e),d))*layer;
+      if(uHeightMode==1){
+        // The base also slopes with the terrain. Scaling only the top normal
+        // by layer would incorrectly flatten the lower terrain-following shells.
+        heights+=(1.0-layer)*vec4(terrainHeight(p-vec2(e,0.0)),terrainHeight(p+vec2(e,0.0)),
+          terrainHeight(p-vec2(0.0,e)),terrainHeight(p+vec2(0.0,e)));
+      }
+      return normalize(vec3(heights.x-heights.y,2.0*e,heights.z-heights.w));
     }
     vec3 fogLight(float n,float elevation){
       // Optical density and illumination are intentionally separate. Fine
@@ -138,16 +181,17 @@
       vec2 p=position.xz;
       vec4 f=sampleField(p);
       vec2 shift=clamp(f.xy,vec2(-3.0),vec2(3.0))*0.085;
-      p+=shift*(0.4+uLayer);
+      // Columns use the same footprint at every shell height. Billows retain
+      // the original layer-dependent offset as well as their noise shear.
+      p+=shift*(0.4+(uDensityProfile==1?0.84:uLayer));
       float top=fogTop(p,f);
       // Keep vertices below protruding terrain; scene depth clips them. Raising
       // vertices back onto the terrain here would recreate the snowy blanket.
-      vec3 wp=vec3(p.x,mix(-0.06,top,uLayer),p.y);
+      float base=uHeightMode==1?terrainHeight(p)-0.06:-0.06;
+      vec3 wp=vec3(p.x,mix(base,top,uLayer),p.y);
       vThickness=max(0.0,top-terrainHeight(p));
       vField=f;vWorld=wp;vWarp=p+f.xy*0.08;vLevel=uLayer;
-      vec3 topNormal=fogSurfaceNormal(p,f);
-      // Shells use a fraction of the top displacement, so their slopes do too.
-      vFogNormal=normalize(vec3(topNormal.x*uLayer,topNormal.y,topNormal.z*uLayer));
+      vFogNormal=fogSurfaceNormal(p,f,uLayer);
       vec4 mv=viewMatrix*vec4(wp,1.0);vViewDepth=-mv.z;
       gl_Position=projectionMatrix*mv;
     }
@@ -160,6 +204,8 @@
     varying vec4 vField;
     varying float vViewDepth,vThickness,vLevel;
     void main(){
+      // Interpolating masked vertex density alone can bridge a solid footprint.
+      if(solidAt(vWorld.xz)>0.5)discard;
       vec2 suv=gl_FragCoord.xy/uResolution;
       float sceneZ=linearDepth(texture2D(uDepth,suv).r);
       float gap=sceneZ-vViewDepth;
@@ -173,12 +219,14 @@
       float silhouette=smoothstep(0.0,0.35,abs(dot(fogNormal,viewDir)));
       float path=min(vThickness/max(abs(viewDir.y),0.24),3.4);
       float n=cloudNoise(vWarp,vField,vLevel);
-      float concentration=max(0.0,vField.b)*(0.68+n*0.64);
+      float concentration=max(0.0,vField.b)*detailDensity(n);
       float extinction=concentration*uDensity*1.05*fieldEdge(vWorld.xz)*uContribution*silhouette;
       float alpha=(1.0-exp(-extinction*path))*soft;
       vec3 col=fogLight(n,vLevel);
-      float diffuse=max(0.0,dot(fogNormal,normalize(vec3(-0.45,0.82,0.36))));
-      col*=mix(0.50,1.15,diffuse);
+      if(uLightingModel==0){
+        float diffuse=max(0.0,dot(fogNormal,normalize(vec3(-0.45,0.82,0.36))));
+        col*=mix(0.50,1.15,diffuse);
+      }
       if(uDebug==5){
         vec2 q=vWarp+vField.xy*0.55;
         vec2 g=abs(fract(q*0.70)-0.5);
@@ -196,6 +244,7 @@
     varying vec4 vField;
     varying float vViewDepth,vThickness,vLevel;
     void main(){
+      if(solidAt(vWorld.xz)>0.5)discard;
       float z=linearDepth(texture2D(uDepth,gl_FragCoord.xy/uResolution).r);
       if(z<vViewDepth-0.03)discard;
       float a=0.50*fieldEdge(vWorld.xz);
@@ -210,7 +259,11 @@
     vec2 hitBox(vec3 o,vec3 d){
       vec3 safe=sign(d+vec3(0.0000001))*max(abs(d),vec3(0.00001));
       vec3 a=(vec3(-16.0,-0.8,-16.0)-o)/safe;
-      vec3 b=(vec3(16.0,uHeight*1.40+0.52,16.0)-o)/safe;
+      // Preserve the old default interval; expand for stronger relief and for
+      // terrain-following fog above the highest supported hill (1.6 metres).
+      float ceiling=uHeight*(1.40+0.22*max(uDetailStrength-1.0,0.0))+0.52;
+      ceiling+=uHeightMode==1?1.6*uTerrain:0.0;
+      vec3 b=(vec3(16.0,ceiling,16.0)-o)/safe;
       vec3 lo=min(a,b),hi=max(a,b);
       return vec2(max(max(lo.x,lo.y),lo.z),min(min(hi.x,hi.y),hi.z));
     }
@@ -240,17 +293,23 @@
           float height=max(0.02,top-ground);
           float h=(p.y-ground)/height;
           float n=cloudNoise(p.xz,f,h);
-          float vertical=smoothstep(0.0,0.09,p.y-ground)*(1.0-smoothstep(0.48,1.0,h))*step(ground+0.01,top);
-          float rho=max(0.0,f.b)*(0.68+n*0.64)*vertical*uDensity*1.65*fieldEdge(p.xz)*uContribution;
+          // Column keeps one horizontal pattern through height, with a longer
+          // constant-density body and a soft cap. Billows retains its old fade.
+          float capStart=uDensityProfile==1?0.75:0.48;
+          float vertical=smoothstep(0.0,0.09,p.y-ground)*(1.0-smoothstep(capStart,1.0,h))*step(ground+0.01,top);
+          float rho=max(0.0,f.b)*detailDensity(n)*vertical*uDensity*1.65*fieldEdge(p.xz)*uContribution;
           float a=1.0-exp(-rho*dt);
           vec3 color=fogLight(n,clamp(h,0.0,1.0));
-          vec2 towardsLight=vec2(-0.45,0.36)*0.75;
-          float occludingDensity;
-          if(uMode>0)occludingDensity=texture2D(uField,(p.xz+towardsLight)/32.0+0.5).b;
-          else occludingDensity=fogBankDensity(p.xz+towardsLight-vec2(0.35,0.13)*uWind*uTime+f.xy*0.18);
-          float lightDetail=cloudNoise(p.xz+towardsLight,vec4(f.xy,occludingDensity,f.a),h+0.15);
-          occludingDensity*=0.68+0.64*lightDetail;
-          color*=exp(-max(occludingDensity,0.0)*max(top-p.y,0.0)*0.38);
+          if(uLightingModel==0){
+            vec2 towardsLight=vec2(-0.45,0.36)*0.75;
+            float occludingDensity;
+            if(uMode>0)occludingDensity=texture2D(uField,(p.xz+towardsLight)/32.0+0.5).b;
+            else occludingDensity=fogBankDensity(p.xz+towardsLight-vec2(0.35,0.13)*uWind*uTime+f.xy*0.18);
+            occludingDensity*=1.0-solidAt(p.xz+towardsLight);
+            float lightDetail=cloudNoise(p.xz+towardsLight,vec4(f.xy,occludingDensity,f.a),h+0.15);
+            occludingDensity*=detailDensity(lightDetail);
+            color*=exp(-max(occludingDensity,0.0)*max(top-p.y,0.0)*0.38);
+          }
           if(uDebug==5){
             vec2 q=p.xz+f.xy*0.6;
             vec2 gr=abs(fract(q*0.70)-0.5);
@@ -299,9 +358,11 @@
       float aspect=uResolution.x/uResolution.y;
       uv=(uv-0.5)*vec2(max(aspect,1.0),max(1.0/aspect,1.0))+0.5;
       if(min(uv.x,uv.y)<0.0||max(uv.x,uv.y)>1.0){gl_FragColor=vec4(0.015,0.029,0.028,1.0);return;}
-      vec2 world=(uv-0.5)*32.0;vec4 field=sampleField(world);
+      vec2 world=(uv-0.5)*32.0;
+      vec4 field=vec4(0.0);if(uDebug!=7)field=sampleField(world);
       vec3 color;
-      if(uDebug==1){color=mix(vec3(0.008,0.055,0.045),vec3(0.76,0.89,0.76),smoothstep(0.0,1.4,field.b));}
+      if(uDebug==7){color=mix(vec3(0.025,0.055,0.065),vec3(0.95,0.46,0.14),solidAt(world));}
+      else if(uDebug==1){color=mix(vec3(0.008,0.055,0.045),vec3(0.76,0.89,0.76),smoothstep(0.0,1.4,field.b));}
       else if(uDebug==2){
         float speed=length(field.xy);
         float h=atan(field.y,field.x)/6.2831853+0.5;
@@ -344,15 +405,20 @@
       this._targetWidth=0;this._targetHeight=0;
       this.empty=new THREE.DataTexture(new Float32Array([0,0,0.85,0]),1,1,THREE.RGBAFormat,THREE.FloatType);
       this.empty.needsUpdate=true;
+      this.emptyObstacle=new THREE.DataTexture(new Uint8Array([0]),1,1,THREE.RedFormat,THREE.UnsignedByteType);
+      this.emptyObstacle.minFilter=this.emptyObstacle.magFilter=THREE.NearestFilter;
+      this.emptyObstacle.colorSpace=THREE.NoColorSpace;this.emptyObstacle.needsUpdate=true;
       this.uniforms={
-        uNoise:{value:noiseTexture},uField:{value:this.empty},uDepth:{value:null},uAux:{value:this.empty},
+        uNoise:{value:noiseTexture},uField:{value:this.empty},uDepth:{value:null},uAux:{value:this.empty},uObstacle:{value:this.emptyObstacle},
         uTime:{value:0},uHeight:{value:1.35},uDensity:{value:0.95},uRadius:{value:1.15},uStrength:{value:1},
         uSwirl:{value:0.8},uPersistence:{value:5},uWind:{value:0.4},uNear:{value:0.1},uFar:{value:100},
         uContribution:{value:1},uTerrain:{value:1},uMode:{value:0},uTrailCount:{value:0},uDebug:{value:0},
+        uDensityProfile:{value:0},uHeightMode:{value:0},uDetailStrength:{value:1},uHeightShear:{value:1},uLightingModel:{value:0},uObstacles:{value:0},uWakeStyle:{value:0},
         uResolution:{value:new THREE.Vector2(1,1)},uSurfaceRelief:{value:new THREE.Vector4(0.22,0.30,0.44,0.58)},uCamPos:{value:new THREE.Vector3()},
         uTint:{value:new THREE.Color(0.40,0.405,0.375)},
         uTrails:{value:Array.from({length:24},()=>new THREE.Vector4(1000,1000,100,0))},
         uTrailVels:{value:Array.from({length:24},()=>new THREE.Vector4())},
+        uTrailShape:{value:Array.from({length:24},()=>new THREE.Vector4())},
         uInvViewProjection:{value:new THREE.Matrix4()},uSteps:{value:24}
       };
       // Some callers provide only the function, others include its uniform declaration.
@@ -401,12 +467,18 @@
       u.uTime.value=time||0;u.uHeight.value=s.height??1.35;u.uDensity.value=s.density??0.95;
       u.uRadius.value=s.radius??1.15;u.uStrength.value=s.strength??1;u.uSwirl.value=s.swirl??0.8;
       u.uPersistence.value=s.persistence??5;u.uWind.value=s.wind??0.4;u.uTerrain.value=s.terrain==='flat'?0:1;
-      u.uNear.value=camera.near;u.uFar.value=camera.far;u.uMode.value=mode==='analytical'?0:mode==='hybrid'?1:2;
+      u.uNear.value=camera.near;u.uFar.value=camera.far;u.uMode.value=mode==='analytical'?0:mode==='hybrid'?1:mode==='cpu'?3:2;
+      u.uDensityProfile.value=s.densityProfile==='column'?1:0;u.uHeightMode.value=s.heightMode==='terrain'?1:0;
+      u.uDetailStrength.value=Math.max(0,Math.min(1.5,s.detailStrength??1));
+      u.uHeightShear.value=Math.max(0,Math.min(1.5,s.heightShear??1));
+      u.uLightingModel.value=s.lightingModel==='ambient'?1:0;
+      u.uWakeStyle.value=s.wakeStyle==='radial'?1:s.wakeStyle==='tangential'?2:0;
+      u.uObstacle.value=args.obstacleTexture||this.emptyObstacle;u.uObstacles.value=s.obstacles&&args.obstacleTexture?1:0;
       u.uResolution.value.set(w,h);u.uField.value=fieldTexture||this.empty;u.uDepth.value=args.depthTexture;
       camera.getWorldPosition(u.uCamPos.value);
       u.uInvViewProjection.value.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse).invert();
       u.uSteps.value=Math.max(8,Math.min(64,Math.round(s.raySteps||24)));
-      u.uDebug.value=({density:1,velocity:2,pressure:3,curl:4,uv:5,divergence:6})[s.debug]||0;
+      u.uDebug.value=({density:1,velocity:2,pressure:3,curl:4,uv:5,divergence:6,obstacles:7})[s.debug]||0;
       u.uAux.value=s.debug==='pressure'?(args.pressureTexture||this.empty):s.debug==='divergence'?(args.divergenceTexture||this.empty):(args.curlTexture||this.empty);
       if(s.lighting==='night')u.uTint.value.setRGB(0.18,0.235,0.27);
       else if(s.lighting==='day'||s.lighting==='dawn'||s.lighting==='sunrise')u.uTint.value.setRGB(0.47,0.455,0.405);
@@ -414,8 +486,14 @@
       u.uTrailCount.value=Math.min(24,trails.length);
       for(let i=0;i<24;i++){
         const t=trails[i];
-        if(t){u.uTrails.value[i].set(t.x,t.z,t.age??0,t.strength??1);u.uTrailVels.value[i].set(t.vx||0,t.vz||0,0,0);}
-        else{u.uTrails.value[i].set(1000,1000,100,0);u.uTrailVels.value[i].set(0,0,0,0);}
+        if(t){
+          u.uTrails.value[i].set(t.x,t.z,t.age??0,t.strength??1);u.uTrailVels.value[i].set(t.vx||0,t.vz||0,0,0);
+          const capsule=Number.isFinite(t.x0)&&Number.isFinite(t.z0);
+          const radius=Number.isFinite(t.radius)&&t.radius>0?t.radius:0;
+          u.uTrailShape.value[i].set(capsule?t.x0:t.x,capsule?t.z0:t.z,radius,capsule?1:0);
+        }else{
+          u.uTrails.value[i].set(1000,1000,100,0);u.uTrailVels.value[i].set(0,0,0,0);u.uTrailShape.value[i].set(0,0,0,0);
+        }
       }
     }
 
@@ -468,7 +546,7 @@
     }
 
     dispose(){
-      this.fogTarget.dispose();this.empty.dispose();this.geometry.dispose();this.quadGeometry.dispose();
+      this.fogTarget.dispose();this.empty.dispose();this.emptyObstacle.dispose();this.geometry.dispose();this.quadGeometry.dispose();
       for(const m of this.materials)m.dispose();
       this.wireMaterial.dispose();this.rayMaterial.dispose();this.compositeMaterial.dispose();this.debugMaterial.dispose();
     }

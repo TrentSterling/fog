@@ -16,7 +16,9 @@
   const DEFAULT_SETTINGS = Object.freeze({
     density:1.25,height:1.22,radius:1.35,strength:1.20,swirl:0.8,persistence:5.2,wind:.32,
     pressure:18,vorticity:.38,resolution:128,terrain:'flat',lighting:'reference',environment:'reference',
-    paused:false,quality:'balanced',raySteps:32,renderScale:.8,wireframe:false,debug:'beauty',meshLayers:1
+    paused:false,quality:'balanced',raySteps:32,renderScale:.8,wireframe:false,debug:'beauty',meshLayers:1,
+    obstacles:true,obstacleCourse:false,wakeStyle:'paired',densityProfile:'billows',heightMode:'world',
+    detailStrength:1,heightShear:1,lightingModel:'directional'
   });
   const DEFAULT_VIEW = Object.freeze({
     mode:'fluid',renderer:'raymarch',layout:'single',compareMode:'hybrid',compareRenderer:'same',actorCount:1,auto:true
@@ -29,15 +31,17 @@
   });
   const NUMBERS = Object.freeze({
     density:[0,2.2],height:[.15,2.8],radius:[.35,2.7],strength:[0,2.5],swirl:[0,2.5],
-    persistence:[.6,12],wind:[0,2],pressure:[2,32,true],vorticity:[0,1.8],raySteps:[8,48,true],renderScale:[.3,1]
+    persistence:[.6,12],wind:[0,2],pressure:[2,32,true],vorticity:[0,1.8],raySteps:[8,48,true],renderScale:[.3,1],
+    detailStrength:[0,1.5],heightShear:[0,1.5]
   });
   const SETTING_ENUMS = Object.freeze({
     terrain:['flat','hills'],lighting:['reference','day','dusk','night'],environment:['reference','forest'],
-    quality:['low','balanced','high'],debug:['beauty','density','velocity','uv','pressure','curl'],meshLayers:[1,4]
+    quality:['low','balanced','high'],debug:['beauty','density','velocity','uv','pressure','curl','divergence','obstacles'],meshLayers:[1,4],
+    wakeStyle:['paired','radial','tangential'],densityProfile:['billows','column'],heightMode:['world','terrain'],lightingModel:['directional','ambient']
   });
   const VIEW_ENUMS = Object.freeze({
-    mode:['analytical','hybrid','fluid'],renderer:['mesh','raymarch','layered'],layout:['single','compare','triple'],
-    compareMode:['analytical','hybrid','fluid'],compareRenderer:['same','mesh','raymarch','layered'],actorCount:[1,4,8]
+    mode:['analytical','hybrid','fluid','cpu'],renderer:['mesh','raymarch','layered'],layout:['single','compare','triple'],
+    compareMode:['analytical','hybrid','fluid','cpu'],compareRenderer:['same','mesh','raymarch','layered'],actorCount:[1,4,8]
   });
   const own = (object, key) => Object.prototype.hasOwnProperty.call(object,key);
   const read = (object,key) => own(object,key) ? object[key] : undefined;
@@ -86,11 +90,14 @@
     }
     for(const [key,values] of Object.entries(SETTING_ENUMS))copyEnum(incomingSettings,settings,key,values);
     copyBoolean(incomingSettings,settings,'wireframe');copyBoolean(incomingSettings,settings,'paused');
+    copyBoolean(incomingSettings,settings,'obstacles');copyBoolean(incomingSettings,settings,'obstacleCourse');
     // Resolution is derived from the validated quality preset. A file cannot
     // request an arbitrary GPU allocation through an exported resolution key.
     settings.resolution=QUALITY_PRESETS[settings.quality].resolution;
     for(const [key,values] of Object.entries(VIEW_ENUMS))copyEnum(incomingView,view,key,values);
     copyBoolean(incomingView,view,'auto');
+    // The original three-way view always shows Analytical, Hybrid, and GPU.
+    if(view.layout==='triple'&&view.mode==='cpu')view.mode='fluid';
     const incomingCamera=read(input,'camera');
     if(incomingCamera!==undefined) {
       if(!record(incomingCamera))throw new PresetError('Preset camera must be an object.');
