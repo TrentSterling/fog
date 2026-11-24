@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="description" content="Explore interactive ground fog with FogLab by Tront. Compare analytical motion, a persistent interaction field, and stable fluids, then choose a mesh or volume renderer. Free, open source, and available as one offline HTML file.">
+<meta name="theme-color" content="#0e191e">
+<link rel="canonical" href="https://tront.xyz/fog/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="FogLab by Tront · Interactive Ground Fog">
+<meta property="og:description" content="Three ways to move fog. Three ways to render it. An interactive Three.js experiment with guided comparisons and a single-file offline download.">
+<meta property="og:url" content="https://tront.xyz/fog/">
+<meta property="og:image" content="https://tront.xyz/fog/assets/foglab-preview.png">
+<meta property="og:image:width" content="960">
+<meta property="og:image:height" content="540">
+<meta property="og:image:alt" content="FogLab's rendered ground fog surrounding a gold mannequin on a dark checkerboard stage.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="FogLab by Tront · Interactive Ground Fog">
+<meta name="twitter:description" content="Compare analytical, hybrid, and fluid motion with interchangeable fog renderers.">
+<meta name="twitter:image" content="https://tront.xyz/fog/assets/foglab-preview.png">
+<title>FogLab by Tront · Interactive Ground Fog</title>
+<style>/*__STYLE__*/</style>
+</head>
+<body>
+<div id="app">
+ <header class="topbar">
+  <div class="brand" aria-label="FogLab by Tront"><svg viewBox="0 0 34 34" aria-hidden="true"><path d="M4 12c6-7 12 7 20 0s8 0 8 0M2 20c7-7 13 7 21 0s9 0 9 0M5 28c6-7 12 7 20 0"/></svg><span>FOG<span class="light">LAB</span></span><span class="brand-byline">by <a href="https://tront.xyz/" target="_blank" rel="noopener">Tront</a></span></div>
+  <span id="capability" class="runtime"><i></i>WEBGL 2</span>
+  <nav class="top-actions" aria-label="Learn, share, and download">
+   <button id="learnButton" class="top-action learn-action" aria-haspopup="dialog" aria-controls="learnDialog"><span class="wide-label">How it works</span><span class="compact-label">Learn</span></button>
+   <button id="copyLink" class="top-action" aria-label="Copy experiment link"><span class="wide-label">Copy experiment link</span><span class="compact-label">Copy link</span></button>
+   <a id="downloadHtml" class="top-action" href="./FogLab.html" download="FogLab.html" aria-label="Download FogLab as one offline HTML file"><span class="wide-label">Download HTML</span><span class="compact-label">Download</span></a>
+   <a class="top-action source-link" href="https://github.com/TrentSterling/fog" target="_blank" rel="noopener">Source</a>
+   <button id="helpButton" class="icon-button" title="Controls, methods and credits" aria-label="Open controls and credits" aria-haspopup="dialog" aria-controls="helpDialog">?</button><button id="uiToggle" class="icon-button" title="Hide controls (H)" aria-label="Toggle fog controls"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 3h14v14H3zM13 3v14"/></svg></button>
+  </nav>
+ </header>
+ <section id="guideBar" class="guide-bar" aria-label="Guided experiments">
+  <div class="guide-copy" aria-live="polite"><strong id="guideTitle">Start with a comparison</strong><p id="guideText">Change the motion or the renderer. Watch what each one contributes.</p></div>
+  <div class="guide-actions"><button data-guide="motion" disabled>Compare motion</button><button data-guide="rendering" disabled>Compare rendering</button><button data-guide="density" disabled>Inspect field</button><button id="returnBeauty" class="guide-return" hidden>Return to fog</button><button id="restoreExperiment" class="guide-return" hidden>Restore my view</button></div>
+  <button id="dismissGuide" class="icon-button guide-dismiss" aria-label="Dismiss the experiment guide" title="Dismiss guide">×</button>
+ </section>
+ <main>
+  <section id="stage" aria-label="Interactive 3D fog playground">
+   <canvas id="viewport" tabindex="0" aria-label="Fog simulation. WASD moves the wanderer, shift sprints, drag orbits, right drag stirs the fog."></canvas>
+   <div id="scene-heading"><div class="eyebrow">REFERENCE STUDY / 002</div><h1>Ground fog study</h1><p>Walk, stir, and compare the three motion models.</p></div>
+   <div class="view-tools"><div id="layoutControls" class="segments"><button data-layout="single" class="active">Solo</button><button data-layout="compare">A / B</button><button data-layout="triple">All three</button></div><button id="cameraButton" class="small-button" title="Cycle camera (C)">Follow cam</button></div>
+   <div id="paneLabels"></div>
+   <div id="loading"><div class="loader-mark">FOG<span>LAB</span></div><div class="loading-bar"><span></span></div><p>Preparing the fog field…</p></div>
+   <div id="errorBox" hidden>
+    <figure class="fallback-preview"><img src="/*__PREVIEW_URI__*/" width="960" height="540" alt="A rendered preview of FogLab, showing low fog banks and a gold mannequin on a dark checkerboard stage."><figcaption>Rendered preview · live WebGL unavailable</figcaption></figure>
+    <h2>Live rendering needs WebGL 2</h2><p id="errorText">This browser cannot draw the live scene. The guide, source, and offline download are still available.</p>
+    <div class="error-actions"><button id="errorLearn" class="primary-action">How it works</button><button id="retryButton">Try again</button><a href="./FogLab.html" download="FogLab.html" data-download-html>Download HTML</a><a href="https://github.com/TrentSterling/fog" target="_blank" rel="noopener">View source</a></div>
+    <p class="fallback-note">The image above is a saved render of the actual scene. It is not running in this browser.</p>
+   </div>
+   <div id="toast" role="status" aria-live="polite"></div>
+   <div class="bottom-overlay"><div class="key-help"><span><kbd>WASD</kbd> move</span><span><kbd>SHIFT</kbd> sprint</span><span><kbd>DRAG</kbd> orbit</span><span><kbd>RMB</kbd> stir</span></div>
+    <div class="transport"><button id="autoButton" class="active" title="Toggle automatic walk (T)"><svg viewBox="0 0 20 20"><path d="M6 4l10 6-10 6z"/></svg><span>Auto walk</span></button><button id="pauseButton" title="Pause (P)" aria-label="Pause"><svg viewBox="0 0 20 20"><path d="M7 4v12M13 4v12"/></svg></button><button id="stepButton" title="Single simulation step when paused" aria-label="Single step"><svg viewBox="0 0 20 20"><path d="M5 4l9 6-9 6zM16 4v12"/></svg></button><span class="transport-sep"></span><button id="pulseButton" title="Send a radial impulse (Space)"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="3"/><circle cx="10" cy="10" r="7"/></svg><span>Pulse</span></button><button id="resetButton" title="Reset world and all fields (R)" aria-label="Reset"><svg viewBox="0 0 20 20"><path d="M4 8a6 6 0 1 1 0 5M4 3v5h5"/></svg></button></div>
+   </div>
+   <button id="showUi" hidden>Show controls <kbd>H</kbd></button>
+  </section>
+  <aside id="controls" aria-label="Fog settings">
+   <div class="panel-head"><div><div class="eyebrow">THE LABORATORY</div><h2>Fog controls</h2></div><span class="live-tag">LIVE</span></div>
+   <div class="panel-scroll">
+    <section class="control-section">
+     <div class="section-title"><h3>Motion model</h3><span>01</span></div>
+     <div id="modeCards" class="mode-cards">
+      <button data-mode="analytical" class="mode-card"><span class="mode-icon violet"><svg viewBox="0 0 24 24"><path d="M3 17c4-14 8 14 12 0s6 0 6 0M3 8c4-8 8 8 12 0s6 0 6 0"/></svg></span><span class="mode-copy"><strong>Analytical</strong><small>Remembered paths. No simulation grid.</small></span><span class="mode-dot"></span></button>
+      <button data-mode="hybrid" class="mode-card"><span class="mode-icon mint"><svg viewBox="0 0 24 24"><path d="M3 8l9-5 9 5-9 5zM3 12l9 5 9-5M3 16l9 5 9-5"/></svg></span><span class="mode-copy"><strong>Hybrid</strong><small>A persistent, flowing interaction map.</small></span><span class="mode-dot"></span></button>
+      <button data-mode="fluid" class="mode-card active"><span class="mode-icon amber"><svg viewBox="0 0 24 24"><path d="M20 10c0-7-12-9-16-2-6 10 10 17 15 9 4-7-8-12-11-6-2 4 5 7 6 3"/></svg></span><span class="mode-copy"><strong>Stable fluids</strong><small>Velocity. Pressure. Vorticity.</small></span><span class="mode-dot"></span></button>
+     </div>
+     <div id="comparisonPick" hidden><label for="compareMode">Right-hand comparison</label><select id="compareMode"><option value="analytical">Analytical</option><option value="hybrid" selected>Hybrid</option><option value="fluid">Stable fluids</option></select></div>
+    </section>
+    <section class="control-section">
+     <div class="section-title"><h3>Rendering</h3><span>02</span></div>
+     <div id="rendererControls" class="segments renderer-segments"><button data-render="mesh">Mesh</button><button data-render="raymarch" class="active">Raymarch</button><button data-render="layered">Layered</button></div>
+     <p id="renderDescription" class="hint">Integrate transported density below a shared fog ceiling, clipped by the terrain.</p>
+     <label id="compareRendererRow" class="inline-label" hidden>Comparison renderer<select id="compareRenderer"><option value="same">Match left</option><option value="mesh">Mesh</option><option value="raymarch">Raymarch</option><option value="layered">Layered</option></select></label>
+     <div id="slidersMain"></div>
+    </section>
+    <section class="control-section">
+     <div class="section-title"><h3>Interaction</h3><span>03</span></div>
+     <div id="slidersInteraction"></div>
+     <label class="inline-label">Wanderers<select id="actorCount"><option value="1">One</option><option value="4">Four</option><option value="8">Eight</option></select></label>
+    </section>
+    <section class="control-section">
+     <div class="section-title"><h3>The stage</h3><span>04</span></div>
+     <label class="inline-label">Environment<select id="environment"><option value="reference">Reference stage</option><option value="forest">Forest ruins</option></select></label>
+     <div class="two-controls"><label>Terrain<select id="terrain"><option value="flat">Flat field</option><option value="hills">Rolling hills</option></select></label><label>Light<select id="lighting"><option value="reference">Neutral reference</option><option value="dusk">Blue hour</option><option value="day">Golden hour</option><option value="night">Moonlight</option></select></label></div>
+     <label class="inline-label">Quality<select id="quality"><option value="low">Light · 64²</option><option value="balanced" selected>Balanced · 128²</option><option value="high">Fine · 256²</option></select></label>
+    </section>
+    <details class="control-section advanced"><summary>Inspect & tune <span>+</span></summary>
+     <label class="inline-label">Mesh surfaces<select id="meshLayers"><option value="1">Single sheet</option><option value="4">Four shells</option></select></label>
+     <label class="inline-label">Visualize<select id="debugView"><option value="beauty">Final fog</option><option value="density">Density / wake</option><option value="velocity">Velocity / flow</option><option value="uv">Warped coordinates</option><option value="pressure">Pressure (fluid)</option><option value="curl">Vorticity (fluid)</option></select></label>
+     <label class="switch-row"><span>Wireframe geometry</span><input id="wireframe" type="checkbox"><span class="switch"></span></label>
+     <div id="slidersAdvanced"></div>
+     <p class="hint">Pressure is used only by Stable fluids. Ray samples apply only to the raymarch component. Quality controls field, mesh and drawing resolution.</p>
+     <div class="two-buttons"><button id="exportPreset">Export preset</button><button id="importPreset">Import preset</button><input type="file" id="presetFile" accept="application/json,.json" hidden></div>
+     <button id="captureButton" class="full-button">Capture this view</button>
+     <div class="two-buttons"><button id="diagnosticButton">Check GPU fields</button><button id="shaderButton">Export shaders</button></div>
+     <output id="diagnosticResult" class="diagnostic-result" hidden></output>
+    </details>
+    <section class="control-section metrics-section"><div class="section-title"><h3>Live workload</h3><span id="timingBadge">FRAME</span></div><div class="metrics"><div><strong id="fps">—</strong><span>frame rate</span></div><div><strong id="gpuTime">—</strong><span id="gpuLabel">GPU total · ms</span></div><div><strong id="simPasses">1</strong><span>passes / tick</span></div><div><strong id="drawCalls">—</strong><span>draws / frame</span></div></div><div class="perf-track"><i id="perfBar"></i></div><p id="perfNote" class="hint">Measured for the current view. Compare mode renders multiple views.</p></section>
+    <div class="panel-footer"><span>BUILT FOR THE CURIOUS</span><button id="aboutButton">Methods & credits</button></div>
+   </div>
+  </aside>
+ </main>
+ <footer class="statusbar"><span><i class="status-dot"></i><span id="statusText">128² field · 30 Hz updates · 256² noise atlas</span></span><span id="backendLabel">FLUID / RAYMARCH</span><span class="footer-right">THREE MOTION MODELS. ONE WORLD.</span></footer>
+</div>
+<dialog id="learnDialog" aria-labelledby="learnTitle" aria-describedby="learnIntro">
+ <div class="dialog-head"><div><div class="eyebrow">HOW IT WORKS</div><h2 id="learnTitle">Motion and rendering are separate choices.</h2></div><button id="closeLearn" class="icon-button" aria-label="Close learning guide">×</button></div>
+ <div class="dialog-content learning-content">
+  <p id="learnIntro">The <strong>motion model</strong> decides how a wake evolves. The <strong>renderer</strong> turns that result into visible fog. Any motion model can drive any renderer, so you can compare one choice while holding the other steady.</p>
+  <div class="learning-axes">
+   <section class="learning-axis"><h3>How does the fog move?</h3><dl><dt>Analytical</dt><dd>Rebuilds disturbances from recent paths. Wakes fade with age; no simulation texture or pressure solve is needed.</dd><dt>Hybrid</dt><dd>Keeps a small texture of velocity, density, and wake energy. Each update moves the contents and adds new interactions.</dd><dt>Stable fluids</dt><dd>Also solves pressure to reduce divergence in the velocity field. Density then follows that evolving flow.</dd></dl></section>
+   <section class="learning-axis"><h3>How do we draw it?</h3><dl><dt>Mesh</dt><dd>One gently displaced sheet, or four shells. Texture opacity and soft depth intersections suggest a thicker bank.</dd><dt>Raymarch</dt><dd>Samples density along the view ray through a shallow volume. More work per pixel, with softer depth and silhouettes.</dd><dt>Layered</dt><dd>Combines the two: 30% of the optical density budget goes to the mesh and 70% to the volume.</dd></dl></section>
+  </div>
+  <p class="learning-note">All modes share the world, interaction inputs, and fog appearance controls. Analytical motion reconstructs its result from history; the GPU models read a stored field. The grid stores horizontal flow and concentration, not a full 3D simulation.</p>
+  <h3>Try a controlled comparison</h3>
+  <p>Each experiment starts the same neutral stage, automatic walk, and camera from time zero. You can still orbit, pause, pulse, or change a control.</p>
+  <div class="learning-experiments">
+   <section><button data-guide="motion" disabled>Compare motion</button><p>Three panes, one mesh renderer. Follow the wake after the wanderer passes: how does it bend, spread, and fade?</p></section>
+   <section><button data-guide="rendering" disabled>Compare rendering</button><p>One fluid field, mesh on the left and volume on the right. Look at bank edges, height, and the view close to the ground.</p></section>
+   <section><button data-guide="density" disabled>Inspect field</button><p>Replace the scene with its top-down density map. Bright means more fog; dark means less. Use <b>Return to fog</b> to see the scene again.</p></section>
+  </div>
+  <p id="learningAvailability" class="learning-availability" role="status">Preparing the experiment controls…</p>
+  <p class="learning-note">Changing experiments or restoring a view restarts the simulation. A shared link stores settings and camera, not the current texture or elapsed time. Timings include every visible pane, so use Solo when measuring performance.</p>
+  <details class="learning-limit"><summary>What this experiment does not simulate</summary><p>The flow is horizontal and two dimensional. Hills clip the fog's visible height; rocks occlude it. Neither is a general fluid obstacle in the pressure solve, and this is not a 3D buoyancy simulation. These are original approaches to the effect, not a verified description of Nintendo's implementation.</p></details>
+  <div class="learning-footer"><button id="learnCredits" class="full-button">Controls, research & credits</button><a href="https://github.com/TrentSterling/fog" target="_blank" rel="noopener">Read the source</a></div>
+ </div>
+</dialog>
+<dialog id="shareDialog" class="share-dialog" aria-labelledby="shareTitle" aria-describedby="shareDescription"><div class="dialog-head"><div><div class="eyebrow">SHARE THIS EXPERIMENT</div><h2 id="shareTitle">Copy the experiment link</h2></div><button id="shareClose" class="icon-button" aria-label="Close experiment link">×</button></div><div class="dialog-content"><p id="shareDescription">The link restores settings and camera, then starts a fresh simulation. Select the link and copy it.</p><label for="shareLink">Experiment URL</label><textarea id="shareLink" rows="4" readonly spellcheck="false" autocomplete="off"></textarea><p id="shareStatus" class="hint" role="status">Copy with Ctrl+C or ⌘C, or press and hold on a touch device.</p></div></dialog>
+<dialog id="helpDialog" aria-labelledby="helpTitle"><div class="dialog-head"><div><div class="eyebrow">FOGLAB / FIELD NOTES</div><h2 id="helpTitle">One world. Three ways to move air.</h2></div><button id="closeHelp" class="icon-button" aria-label="Close help">×</button></div><div class="dialog-content">
+ <p>This file contains Three.js, shaders, geometry, and a generated, seamless noise atlas. Open it directly in a WebGL 2 browser. The baked noise atlas stays static. In Hybrid and Stable fluids, the density texture carries the broad cloud shapes as it moves; restrained noise adds edge detail. The default neutral stage makes gaps and wakes easy to inspect.</p>
+ <h3>The motion models</h3><div class="method-note"><strong>Analytical</strong><p>Up to 24 decaying trail stamps reconstruct density, motion, and wake energy from position history. The chosen renderer uses that result for a surface or volume. There is no simulation texture and no pressure solver.</p></div><div class="method-note"><strong>Hybrid</strong><p>A low-resolution ping-pong texture retains velocity, density, and wake energy. One update advects, fades, and adds interaction. It does not solve incompressibility.</p></div><div class="method-note"><strong>Stable fluids</strong><p>A real GPU solver advects velocity, adds interaction and vorticity, computes divergence, iterates a Jacobi pressure solve, projects velocity, and transports density. This is a horizontal 2D field, reconstructed below a shared fog ceiling. Terrain can rise above the fog.</p></div>
+ <h3>Choose how to see it</h3><p><b>Mesh</b> uses deformed fog surfaces, transported cloud density, and soft scene-depth intersections. <b>Raymarch</b> integrates the same field through a shallow volume. <b>Layered</b> divides the fog budget between an ambient mesh and a reactive volume. These are interchangeable rendering choices, independent of the motion model.</p>
+ <h3>Controls</h3><div class="shortcut-grid"><span>Move wanderer</span><kbd>W A S D / arrows</kbd><span>Sprint</span><kbd>Shift</kbd><span>Orbit camera</span><kbd>Left drag</kbd><span>Stir with a brush</span><kbd>Right drag</kbd><span>Zoom</span><kbd>Scroll</kbd><span>Radial pulse</span><kbd>Space</kbd><span>Pause / reset</span><kbd>P / R</kbd><span>Auto walk / camera</span><kbd>T / C</kbd><span>Hide interface</span><kbd>H</kbd></div><p>Movement takes over from auto walk. Touch drag orbits; tap <b>Pulse</b> to interact. Use Solo for timing, A/B or All three for visual comparison. Pausing freezes motion and fog; you can still orbit and change the renderer.</p>
+ <h3>What the numbers mean</h3><p>The GPU timer measures the full current frame, including the shared scene and every visible pane, when timer-query support is available. Otherwise the UI reports CPU submission time, which is not GPU time. Simulation runs at a fixed 30 Hz; frame rate and GPU milliseconds are live measurements from this device. They do not predict Quest performance. WebXR is not implemented.</p>
+ <h3>Research & credits</h3><p>This is an original experiment inspired by reactive ground fog. It is not a confirmed reconstruction of Nintendo's implementation. A single horizontal field does not simulate full 3D buoyancy or general obstacle flow. The scene's rocks are visual occluders, not fluid boundary conditions. The fog ceiling clips against hills; the horizontal velocity solve itself does not include the hills as obstacles.</p>
+ <ul><li><a href="https://www.youtube.com/watch?v=Sm8x4lOGOYE" target="_blank" rel="noopener">Original ground-fog video reference</a></li><li><a href="https://developer.nvidia.com/gpugems/gpugems/part-vi-beyond-triangles/chapter-38-fast-fluid-dynamics-simulation-gpu" target="_blank" rel="noopener">Mark Harris · Fast Fluid Dynamics Simulation on the GPU</a></li><li><a href="https://developer.nvidia.com/gpugems/gpugems3/part-v-physics-simulation/chapter-30-real-time-simulation-and-rendering-3d-fluids" target="_blank" rel="noopener">Crane, Llamas & Tariq · Real-Time Simulation and Rendering of 3D Fluids</a></li><li><a href="https://www.dgp.toronto.edu/public_user/stam/reality/Research/pdf/GDC03.pdf" target="_blank" rel="noopener">Jos Stam · Real-Time Fluid Dynamics for Games</a></li><li><a href="https://www.cs.ubc.ca/~rbridson/docs/bridson-siggraph2007-curlnoise.pdf" target="_blank" rel="noopener">Bridson, Hourihan & Nordenstam · Curl-Noise for Procedural Fluid Flow</a></li><li><a href="https://threejs.org/" target="_blank" rel="noopener">Three.js r180 · MIT license embedded in this file</a></li></ul>
+ <p class="fine-print">FogLab by <a href="https://tront.xyz/" target="_blank" rel="noopener">Tront</a>. Original FogLab code and procedural assets: MIT. Permission is granted to use, modify and redistribute with this notice. Provided as-is, without warranty. Three.js retains its own embedded MIT notice. <a href="https://github.com/TrentSterling/fog" target="_blank" rel="noopener">Source on GitHub</a>.</p>
+</div></dialog>
+<script>/*__THREE__*/</script>
+<script>window.FogLab=window.FogLab||{};/*__APP__*/</script>
+</body></html>
