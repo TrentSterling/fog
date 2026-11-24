@@ -1,0 +1,36 @@
+{
+  "seed": "gauntlet-2411",
+  "provenance": "Unmodified rendered images, anonymously shuffled for review; overview thumbnails resize without enhancement.",
+  "images": [
+    {
+      "variant": "fine",
+      "shot": "follow",
+      "label": "A",
+      "sha256": "76e543438ed1de47f53d7526a727528dfd22c254ff0ad8b26a9db21811e951b6"
+    },
+    {
+      "variant": "aggressive",
+      "shot": "follow",
+      "label": "B",
+      "sha256": "036604dec94a9f13a33e22154c7e100d2ee889a62189fc5d9efdfa6beb12f2e6"
+    },
+    {
+      "variant": "control",
+      "shot": "follow",
+      "label": "C",
+      "sha256": "46a6f05162bf445e6a590c8f8fbad00069e28e27c0ba6c73ea46499b8d305fd8"
+    },
+    {
+      "variant": "erosion",
+      "shot": "follow",
+      "label": "D",
+      "sha256": "c1fe145106cb682feee55faf651d805d9710c27a78b70ca5fc02b4b3c92aa40d"
+    },
+    {
+      "variant": "params",
+      "shot": "follow",
+      "label": "E",
+      "sha256": "ff6ede907e46c668e85e838f0c704f89827fb6b7d99ea10018e4222f178e28ab"
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "seed": "independent-93451",
+  "provenance": "Unmodified rendered images, anonymously shuffled for review; overview thumbnails resize without enhancement.",
+  "images": [
+    {
+      "variant": "volume-soft",
+      "shot": "follow",
+      "label": "A",
+      "sha256": "e75021f050c89ceb3bbf9b1ac715b612b9fd8b4f710e688a5ce449ec64eeac99"
+    },
+    {
+      "variant": "physical",
+      "shot": "follow",
+      "label": "B",
+      "sha256": "4ddc5b78638dffef25404f5ce6e71ca183c9b6201fdcbdcf6d0a38a526a26bc7"
+    },
+    {
+      "variant": "volume",
+      "shot": "follow",
+      "label": "C",
+      "sha256": "d63c623cf6df38d12437dfd8c87a8fce3afadb5e7e7562f20d39bd9d53bf8c9d"
+    },
+    {
+      "variant": "airy",
+      "shot": "follow",
+      "label": "D",
+      "sha256": "5b4762baf49b0a1acbd99d6d001ce44e2d42de58aa490c36aedfa7df757c9d54"
+    },
+    {
+      "variant": "params",
+      "shot": "follow",
+      "label": "E",
+      "sha256": "ff6ede907e46c668e85e838f0c704f89827fb6b7d99ea10018e4222f178e28ab"
+    },
+    {
+      "variant": "volume-lit",
+      "shot": "follow",
+      "label": "F",
+      "sha256": "f3c4e80adc684354e211acc5bf336467ccedebd26032b439d84fe5aa7212e3ce"
+    },
+    {
+      "variant": "medium-erosion",
+      "shot": "follow",
+      "label": "G",
+      "sha256": "ba1c660feb645d6f9db4543305d85e9f49153dbf6c6e56b2efbc21cd3d0006b7"
+    }
+  ]
+}

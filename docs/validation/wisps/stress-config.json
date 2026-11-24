@@ -1,0 +1,115 @@
+{
+  "width": 960,
+  "height": 540,
+  "defaults": {
+    "mode": "fluid",
+    "render": "raymarch",
+    "ticks": [
+      180
+    ],
+    "settings": {
+      "resolution": 128,
+      "raySteps": 32,
+      "renderScale": 0.8,
+      "quality": "balanced",
+      "cpuExecution": "main"
+    },
+    "camera": {
+      "theta": 0.38,
+      "phi": 1.14,
+      "distance": 11.5
+    },
+    "shots": [
+      {
+        "id": "follow"
+      }
+    ]
+  },
+  "variants": [
+    {
+      "id": "flat",
+      "ticks": [
+        180,
+        900
+      ],
+      "shots": [
+        {
+          "id": "follow"
+        },
+        {
+          "id": "grazing",
+          "camera": {
+            "phi": 1.36,
+            "distance": 13
+          }
+        }
+      ]
+    },
+    {
+      "id": "hills",
+      "ticks": [
+        180,
+        900
+      ],
+      "settings": {
+        "terrain": "hills",
+        "heightMode": "world"
+      },
+      "shots": [
+        {
+          "id": "follow"
+        },
+        {
+          "id": "grazing",
+          "camera": {
+            "phi": 1.36,
+            "distance": 13
+          }
+        }
+      ]
+    },
+    {
+      "id": "slash",
+      "ticks": [
+        180,
+        183,
+        186,
+        189,
+        192,
+        195,
+        198,
+        201,
+        204,
+        207,
+        210,
+        213,
+        216,
+        219,
+        222,
+        225,
+        228,
+        231,
+        234,
+        237,
+        240
+      ],
+      "slashTicks": [
+        180
+      ]
+    },
+    {
+      "id": "cpu-main",
+      "mode": "cpu"
+    },
+    {
+      "id": "analytical-mesh",
+      "mode": "analytical",
+      "render": "mesh"
+    },
+    {
+      "id": "hybrid-layered",
+      "mode": "hybrid",
+      "render": "layered"
+    }
+  ]
+}

@@ -2,7 +2,7 @@
 /* Reproducible visual checks of the production Three.js modules. This runs a
  * native Mesa GLES context, not Chromium, and does not measure GPU performance. */
 'use strict';
-const fs=require('fs'),path=require('path'),vm=require('vm'),crypto=require('crypto');
+const fs=require('fs'),path=require('path'),vm=require('vm'),crypto=require('crypto'),os=require('os');
 const options={source:path.resolve(__dirname,'../..'),out:path.resolve('visual-output')};
 for(let i=2;i<process.argv.length;i++){
   const key=process.argv[i];
@@ -43,7 +43,9 @@ renderer.debug.onShaderError=(g,p,v,f)=>{throw Error('Shader compilation failed:
 const manifest={
   provenance:'Actual production Three.js modules and fog shaders rendered through a native Mesa GLES software context. These are not browser screenshots, generated illustrations, or hardware performance benchmarks. CPU captures use the synchronous CPU adapter.',
   renderer:gl.getParameter(gl.RENDERER),glVersion:gl.getParameter(gl.VERSION),source:ROOT,
-  width:W,height:H,fixedHz:30,moduleSHA256,noiseSHA256,captures:[]
+  width:W,height:H,fixedHz:30,moduleSHA256,noiseSHA256,
+  cameraPolicy:'Locked capture framing: actor target follows without the app RAF smoothing; production terrain-height camera clamp is applied. Identical camera coordinates are recorded for comparison.',
+  captures:[]
 };
 const writeManifest=()=>fs.writeFileSync(path.join(OUT,'manifest.json'),JSON.stringify(manifest,null,2)+'\n');
 writeManifest();
@@ -53,6 +55,24 @@ function position(t,motion){
   return {x:Math.sin(t*.30)*5.2,z:2+Math.sin(t*.30*1.47)*3.7};
 }
 function identifier(value){if(typeof value!=='string'||!/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(value))throw Error('Use letters, numbers, _ and - in capture identifiers.');return value;}
+function fieldFingerprint(sim,mode){
+  if(mode==='analytical')return null;
+  let raw,format;
+  if(mode==='cpu'){
+    raw=sim.texture?.image?.data;format=sim.uploadFormat;
+    if(!ArrayBuffer.isView(raw))throw Error('CPU uploaded field bytes are unavailable.');
+  }else{
+    const target=sim._state?.[sim._stateIndex];
+    if(!target||target.texture!==sim.texture)throw Error('GPU completed field target is unavailable.');
+    raw=new Uint16Array(sim.resolution*sim.resolution*4);format='RGBA16F';
+    // readRenderTargetPixels restores its framebuffer binding and performs no
+    // simulation draw, texture write, ping-pong swap, or state integration.
+    renderer.readRenderTargetPixels(target,0,0,sim.resolution,sim.resolution,raw);
+  }
+  const bytes=Buffer.from(new Uint8Array(raw.buffer,raw.byteOffset,raw.byteLength));
+  if(os.endianness()==='BE'){if(raw.BYTES_PER_ELEMENT===2)bytes.swap16();else if(raw.BYTES_PER_ELEMENT===4)bytes.swap32();}
+  return {sha256:sha(bytes),format,byteOrder:'little-endian',bytes:bytes.length,width:sim.resolution,height:sim.resolution,channels:['velocityX','velocityZ','density','energy'],source:mode==='cpu'?'Completed CPU texture upload array':'Completed GPU state render target'};
+}
 async function runVariant(input){
   const spec={mode:'fluid',render:'raymarch',motion:'walk',ticks:[180],...base,...input};
   spec.settings={...F.Presets.DEFAULT_SETTINGS,...base.settings,...input.settings};
@@ -76,10 +96,12 @@ async function runVariant(input){
   async function capture(tick){
     const diagnostics=spec.mode==='analytical'?null:sim.getDiagnostics();
     if(diagnostics&&!diagnostics.finite)throw Error('Nonfinite simulation for '+spec.id);
+    const field=fieldFingerprint(sim,spec.mode);
     for(const shot of shots){
       const shotId=identifier(shot.id||'follow'),cam={...spec.camera,...shot.camera};
       const target=cam.target?new THREE.Vector3(...cam.target):new THREE.Vector3(actor.x,world.terrainHeight(actor.x,actor.z)+(cam.targetHeight??.72),actor.z);
       if(cam.position)camera.position.fromArray(cam.position);else camera.position.set(target.x+Math.sin(cam.theta)*Math.sin(cam.phi)*cam.distance,target.y+Math.cos(cam.phi)*cam.distance,target.z+Math.cos(cam.theta)*Math.sin(cam.phi)*cam.distance);
+      camera.position.y=Math.max(camera.position.y,world.terrainHeight(camera.position.x,camera.position.z)+.35);
       camera.fov=cam.fov||48;camera.lookAt(target);camera.updateProjectionMatrix();camera.updateMatrixWorld();
       renderer.info.reset();renderer.setScissorTest(false);renderer.setRenderTarget(sceneRT);renderer.setViewport(0,0,W,H);renderer.setClearColor(0x162b2c,1);renderer.clear(true,true,true);renderer.render(world.scene,camera);
       renderer.setRenderTarget(null);renderer.setViewport(0,0,W,H);renderer.setScissor(0,0,W,H);renderer.setScissorTest(false);renderer.setClearColor(0x102023,1);renderer.clear(true,true,true);
@@ -90,7 +112,7 @@ async function runVariant(input){
       const glError=gl.getError();if(glError)throw Error('GLES error 0x'+glError.toString(16)+' for '+filename);
       const stat=await sharp(path.join(OUT,filename)).stats();if(stat.channels.slice(0,3).every(c=>c.stdev<.5))throw Error('Blank capture '+filename);
       const bytes=fs.readFileSync(path.join(OUT,filename));
-      manifest.captures.push({variant:spec.id,shot:shotId,filename,tick,seconds:time,mode:spec.mode,render:spec.render,motion:spec.motion,settings,actor:{...actor},cameraPosition:camera.position.toArray(),cameraTarget:target.toArray(),cameraFov:camera.fov,sourceSHA256:moduleSHA256,noiseSHA256,sha256:sha(bytes),draws:renderer.info.render.calls,triangles:renderer.info.render.triangles,diagnostics,bytes:bytes.length});
+      manifest.captures.push({variant:spec.id,shot:shotId,filename,tick,seconds:time,mode:spec.mode,render:spec.render,motion:spec.motion,settings,actor:{...actor},cameraPosition:camera.position.toArray(),cameraTarget:target.toArray(),cameraFov:camera.fov,sourceSHA256:moduleSHA256,noiseSHA256,rawFieldSHA256:field?.sha256||null,field,sha256:sha(bytes),draws:renderer.info.render.calls,triangles:renderer.info.render.triangles,diagnostics,bytes:bytes.length});
       writeManifest();console.log('[saved] '+path.join(OUT,filename));
     }
   }
@@ -99,11 +121,11 @@ async function runVariant(input){
     if(tickSet.has(0))await capture(0);
     for(let tick=1;tick<=ticks[ticks.length-1];tick++){
       const dt=1/30;time=tick/30;pulseAge+=dt;
+      if(slashTicks.has(tick))F.Interactions.beginSlash(actor);
+      if(jumpTicks.has(tick))F.Interactions.beginJump(actor);
       const old={x:actor.x,z:actor.z},desired=position(time,spec.motion),p=settings.obstacles?F.Interactions.resolveMotion(old,desired,world.getObstacles(),.23):desired;
       Object.assign(actor,p);actor.vx=clamp((p.x-old.x)/dt,-9,9);actor.vz=clamp((p.z-old.z)/dt,-9,9);
       if(Math.hypot(actor.vx,actor.vz)>.04)actor.heading=Math.atan2(-actor.vx,-actor.vz);
-      if(slashTicks.has(tick))F.Interactions.beginSlash(actor);
-      if(jumpTicks.has(tick))F.Interactions.beginJump(actor);
       if(F.Interactions.advanceJump(actor,dt)||pulseTicks.has(tick)){pulseAge=0;pulseX=actor.x;pulseZ=actor.z;}
       actor.strength=clamp(1-actor.jump/Math.max(settings.height,.3),.15,1);
       const segments=F.Interactions.advanceSlash(actor,dt,settings.radius);world.recordSlash(segments,time);

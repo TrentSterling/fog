@@ -71,6 +71,23 @@ noise SHA-256 hashes, renderer provenance, simulation diagnostics, and image
 hashes. Captures abort on shader failure, nonfinite fields, or blank images.
 Wall-clock timings in solver diagnostics are not hardware GPU benchmarks.
 
+Each simulated capture also records `rawFieldSHA256` and a `field` descriptor.
+GPU captures read the completed RGBA16F state render target without drawing or
+advancing the simulation. CPU captures hash the completed texture upload array.
+Bytes are canonicalized to little endian before hashing. Analytical rendering
+does not use a simulation texture and therefore has a null field hash. Compare
+hashes only between equal formats, mode, resolution, simulation settings, and
+tick; CPU and GPU solve differently and need not have equal bytes.
+
+Camera framing is deliberately locked to the actor target rather than replaying
+the app's frame-rate-dependent follow smoothing. The production terrain-height
+camera clamp still applies. All variations use and record the same framing. The
+production `FogRenderer` handles internal resolution, deterministic screen-space
+jitter, depth clipping, and compositing. At 960×540 with scale 0.8 its fog target
+is 768×432. This checks the renderer directly, not HTML layout, browser workers,
+requestAnimationFrame scheduling, browser compositing, or device GPU behavior.
+Input event ticks are applied immediately before that tick's actor integration.
+
 ## Anonymous review sheet
 
 Create a JSON array of image paths, then:
