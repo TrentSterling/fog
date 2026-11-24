@@ -1,0 +1,29 @@
+{
+  "name": "FogLab",
+  "version": "0.3.0",
+  "three": "r180",
+  "htmlBytes": 2872586,
+  "sha256": "d50f507399d302e7d4a0c3789e8b9404a55b64882d204be655859737e11473b8",
+  "modules": [
+    "src/presets.js",
+    "src/fixed-step.js",
+    "src/field-utils.js",
+    "src/interactions.js",
+    "src/world.js",
+    "src/sim.js",
+    "src/cpu-solver.js",
+    "src/cpu-sim.js",
+    "src/cpu-worker-sim.js",
+    "src/fog.js",
+    "src/credits.js",
+    "src/app.js",
+    "src/lab-tools.js",
+    "src/learning.js"
+  ],
+  "workerModules": [
+    "src/field-utils.js",
+    "src/cpu-solver.js",
+    "src/cpu-worker.js"
+  ],
+  "workerSha256": "86af5dba457519ddd421751bc24ecd7bbd71c859243b9fc9c1ec7ed09597218c"
+}
