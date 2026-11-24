@@ -1,0 +1,122 @@
+{
+  "provenance": "Actual Three.js world and shipping fog shaders rendered in native Mesa GLES. CPUWorkerSimulation runs unchanged with a browser-message shim over real Node worker_threads and transferable buffers. These are native integration renders, not browser screenshots or performance measurements.",
+  "result": "PASS",
+  "renderer": "llvmpipe (LLVM 19.1.7, 256 bits)",
+  "version": "OpenGL ES 3.2 Mesa 25.0.7-2+deb13u1",
+  "width": 960,
+  "height": 540,
+  "resolution": 64,
+  "ticks": 180,
+  "simulationTime": 6,
+  "renderMode": "raymarch",
+  "settings": {
+    "density": 1.25,
+    "height": 1.22,
+    "radius": 1.35,
+    "strength": 1.2,
+    "swirl": 0.8,
+    "persistence": 5.2,
+    "wind": 0.32,
+    "pressure": 18,
+    "vorticity": 0.38,
+    "resolution": 64,
+    "terrain": "flat",
+    "lighting": "reference",
+    "environment": "reference",
+    "paused": false,
+    "quality": "low",
+    "raySteps": 20,
+    "renderScale": 0.6,
+    "wireframe": false,
+    "debug": "beauty",
+    "meshLayers": 1,
+    "obstacles": true,
+    "obstacleCourse": false,
+    "wakeStyle": "paired",
+    "densityProfile": "billows",
+    "heightMode": "world",
+    "detailStrength": 1,
+    "heightShear": 1,
+    "lightingModel": "directional",
+    "cpuExecution": "worker"
+  },
+  "sourceSHA256": {
+    "src/presets.js": "ebe00da210390c03d0841e82d6b3564ebe7a2c75dc7bee73a9822bc2d440b1a8",
+    "src/field-utils.js": "1948c21163afa7946f384383558a0ce6a67a2c1610e24b5d08fa1b86f9e38a0d",
+    "src/interactions.js": "60af83604f86b1829fbcc33cc969072ed0e3a5639b5de146697f37567ad8bce8",
+    "src/world.js": "3f119ef1f7765de19745ad681ddf361351acc62cfc10e666244f3a120a172d5a",
+    "src/sim.js": "87a7ccc016d5cbb197caeab85f232c1dbfc351c0869ea051eea6314bfa80b0e7",
+    "src/cpu-solver.js": "13c75c8a209cc6fa6ab653ec5c7722ecb9cce697b6148243a2a167f70821e732",
+    "src/cpu-sim.js": "a9e8bfc0119c49a02d2b6e8f7d977d60deacfc9fc2dc6a8b211f792b812f5368",
+    "src/cpu-worker-sim.js": "68655ac555dabb2157d0e5b647c2bf80df566786499430266f31bd330fac89e7",
+    "src/fog.js": "4b45fd395b59372c065fef46b7413a2b7bcc3c5da457f4be4dd943b89adffb74",
+    "src/app.js": "1d7c01ccb5bbec171d3704b44374488a40a5d70746883c27bc85ddc9b8432ed4",
+    "src/cpu-worker.js": "2926237b3e9579e205aaa66b86ef58497991537168482b3cef49d09e28166e27",
+    "vendor/three.cjs": "2980c5831824f46d79a39a93feb70dd851538ce5b5480a6463883b319022c51f"
+  },
+  "noiseSHA256": "f1e6ce62f727eaf48c0ac10db21eaade897dd61f00ae6457d31e24640838a48a",
+  "workerSourceSHA256": "86af5dba457519ddd421751bc24ecd7bbd71c859243b9fc9c1ec7ed09597218c",
+  "scriptSHA256": "d4b7efac62d1272b99d5ac446b047eb7444a83ae72959b9cca18680c8fb8856d",
+  "packedFieldComparison": {
+    "elements": 16384,
+    "changed": 0,
+    "maximumAbsoluteDifference": 0,
+    "meanAbsoluteDifference": 0,
+    "finite": true
+  },
+  "obstacleMaskComparison": {
+    "elements": 4096,
+    "changed": 0,
+    "maximumAbsoluteDifference": 0,
+    "meanAbsoluteDifference": 0,
+    "finite": true
+  },
+  "pixelComparison": {
+    "elements": 2073600,
+    "changed": 0,
+    "maximumAbsoluteDifference": 0,
+    "meanAbsoluteDifference": 0,
+    "finite": true
+  },
+  "worker": {
+    "execution": "worker",
+    "pending": false,
+    "fieldReady": true,
+    "uploadFormat": "RGBA32F",
+    "stableUploadStorage": true,
+    "atlasStorageAttached": true,
+    "stepMessages": 180,
+    "buffersCreated": 1,
+    "buffersReused": 181
+  },
+  "captures": [
+    {
+      "filename": "native-cpu-main.png",
+      "width": 960,
+      "height": 540,
+      "bytes": 435149,
+      "sha256": "9e450e00f7146ca9175831a0dcf264095696ae2905d118a7cf3e3985c24e389e",
+      "drawCalls": 24,
+      "triangles": 60836
+    },
+    {
+      "filename": "native-cpu-worker.png",
+      "width": 960,
+      "height": 540,
+      "bytes": 435149,
+      "sha256": "9e450e00f7146ca9175831a0dcf264095696ae2905d118a7cf3e3985c24e389e",
+      "drawCalls": 24,
+      "triangles": 60836
+    }
+  ],
+  "cameraPosition": [
+    8.93986145395874,
+    5.5223367955211184,
+    13.46342804963836
+  ],
+  "cameraTarget": [
+    5.064007680566616,
+    0.72,
+    3.759546412393089
+  ]
+}

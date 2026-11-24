@@ -15,12 +15,15 @@
 - Kept CPU and GPU comparison batches on the same completed tick. Camera updates and drawing continue while a worker solve is pending.
 - Exposed actual simulation progress and discarded overload time, alongside separate solve/packing and worker round-trip timing. These report observed work rather than promise a worker speedup.
 - Cleared elapsed backlog on pause and hidden tabs to prevent catch-up bursts on return.
+- Suppressed obsolete CPU fields during asynchronous resets and kept the graphics view available if both CPU execution paths fail.
+- Made divergence reduction unavailable (`null`) when no measurable pre-projection baseline exists, including immediately after reset.
 
 ### Attribution and packaging
 
 - Added a visible Credits panel with the original visual reference, fluid and rendering research, development acknowledgments, and complete offline FogLab and Three.js MIT notices.
 - Added [CREDITS.md](CREDITS.md), expanded [third-party notices](THIRD_PARTY_NOTICES.md), and updated the [technique guide](docs/how-it-works.md).
 - Added worker-protocol and fixed-step regression coverage. The fog shaders and existing visual controls retain the established 0.2 appearance.
+- Added complete application coordination tests, [release validation evidence](docs/validation/v0.3.0.md), and persistent GitHub checkpoint instructions in `AGENTS.md`.
 
 The source release and offline build do not establish publication at the project URL. See [Publishing](README.md#publishing) for the Pages setup and deployment check.
 

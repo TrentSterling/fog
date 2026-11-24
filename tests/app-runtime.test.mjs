@@ -116,7 +116,11 @@ test('worker A/B holds actors, trails and shader time at the last completed tick
   assert.notDeepEqual(submittedActors,initialActors);assert.ok(submittedTrails.length>0);
   assert.equal(h.app.physicsStep(1/30),false);assert.equal(cpu.calls.length,1);assert.equal(h.gpuSteps.length,0);
   assert.deepEqual(copy(h.app.state.actors),submittedActors,'busy frames must not advance input state');
+  const cameraPosition=h.app.camera.position.clone(),canvas=h.element('viewport');
+  canvas.dispatchEvent({type:'pointerdown',pointerId:1,button:0,clientX:100,clientY:100});
+  canvas.dispatchEvent({type:'pointermove',pointerId:1,clientX:180,clientY:125});
   h.frame();h.frame();
+  assert.equal(h.app.camera.position.equals(cameraPosition),false,'orbit controls must remain responsive during a pending solve');
   assert.deepEqual(h.world.latest.actors,initialActors);
   for(const draw of h.fogDraws.slice(initialDraws)){assert.equal(draw.time,0);assert.equal(draw.fieldTime,0);assert.deepEqual(draw.trails,[]);assert.deepEqual(draw.actors,initialActors);}
   cpu.complete();h.frame(0);
@@ -181,6 +185,18 @@ test('completed simulation time commits even if a debug inspection is still busy
   assert.equal(h.gpuSteps.length,1);near(h.gpuSteps[0].time,1/30);
   assert.equal(h.app.physicsStep(1/30),false,'a debug task must not accept another worker solve');
   near(h.app.runtime.submittedTime,1/30);
+});
+
+test('a slow worker retains a bounded elapsed budget without submitting stale inputs',()=>{
+  const h=appHarness(),cpu=h.configure({paused:false});cpu.ready();h.frame(0);h.frame(1/30);
+  for(let frame=0;frame<90;frame++)h.frame(1/60);
+  assert.equal(cpu.calls.length,1);assert.equal(h.gpuSteps.length,0);assert.equal(h.app.runtime.committedTicks,0);
+  near(h.app.runtime.submittedTime,1/30);near(h.app.state.accumulator,.1);
+  assert.ok(h.app.runtime.droppedSeconds>1.3);assert.equal(h.app.runtime.simulationHz,0);
+  cpu.complete();h.frame(0);
+  assert.equal(h.app.runtime.committedTicks,1);assert.equal(h.gpuSteps.length,1);assert.equal(cpu.calls.length,2);
+  near(h.app.runtime.renderTime,1/30);near(h.app.runtime.submittedTime,2/30);near(h.app.state.accumulator,2/30);
+  for(const draw of h.fogDraws.slice(-2)){near(draw.time,1/30);near(draw.fieldTime,1/30);}
 });
 
 test('worker failure restarts every backend and continues with the main-thread fallback',()=>{
