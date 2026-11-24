@@ -376,10 +376,13 @@
         if(this.bottom[i]<0||this.top[i]<0)normalSpeedMax=Math.max(normalSpeedMax,Math.abs(this.v[i]));
       }
       const before=Math.sqrt(preSquared/Math.max(fluidCount,1)),after=Math.sqrt(postSquared/Math.max(fluidCount,1));
+      // Reset has no measured pre-projection baseline. A zero denominator
+      // cannot support a percentage, even if ambient velocity has divergence.
+      const projectionMeasured=Number.isFinite(before)&&Number.isFinite(after)&&before>1e-8;
       return {supported:true,mode:'cpu',resolution:this.resolution,finite,densityMin,densityMax,
         densityMean:densitySum/this.mask.length,speedMax,disturbedTexels,solidCellCount:this.solidCellCount,solidCells:this.solidCellCount,
         solidDensityMax,solidSpeedMax,normalSpeedMax,obstacleBoundaryMaxNormalSpeed:normalSpeedMax,divergenceBeforeRMS:before,divergenceAfterRMS:after,
-        divergenceReduction:1-after/Math.max(before,1e-8),stepCount:this.stepCount,lastSolveMs:this.lastStepMs,
+        projectionMeasured,divergenceReduction:projectionMeasured?1-after/before:null,stepCount:this.stepCount,lastSolveMs:this.lastStepMs,
         memoryBytes:this.memoryBytes,passCount:0};
     }
   }

@@ -19,6 +19,7 @@ test('pressure projection reduces a smooth compressible field with solid boundar
   s.projectVelocity(32);
   const result=s.getDiagnostics();
   assert.ok(result.divergenceBeforeRMS>.1);
+  assert.equal(result.projectionMeasured,true,'direct projection counts even before a simulation tick');
   assert.ok(result.divergenceAfterRMS<result.divergenceBeforeRMS*.7,JSON.stringify(result));
   assert.equal(result.solidSpeedMax,0);assert.equal(result.normalSpeedMax,0);
 });
@@ -81,7 +82,10 @@ test('all local wake styles and a strong slash remain finite at the longest allo
 test('reset reproduces the same field and replay after activity and resolution changes',()=>{
   const s=solver(32);s.setObstacles([{x:2,z:-3,radius:1}]);
   const replay=()=>{for(let tick=0;tick<12;tick++)s.step(1/30,tick/30,[{x:tick*.1,z:0,vx:3,vz:0,radius:1,strength:1}],{...settings,wind:.32,vorticity:.38});};
-  s.reset({wind:.32});replay();const first=s.packRGBA(new Float32Array(32*32*4));
+  s.reset({wind:.32});
+  const resetDiagnostics=s.getDiagnostics();
+  assert.deepEqual([resetDiagnostics.projectionMeasured,resetDiagnostics.divergenceReduction],[false,null],'reset must not invent a reduction percentage');
+  replay();const first=s.packRGBA(new Float32Array(32*32*4));
   s.reset({wind:.32});replay();assert.deepEqual(s.packRGBA(new Float32Array(first.length)),first);
   s.setResolution(64);assert.equal(s.mask.length,64*64);assert.ok(s.solidCellCount>0);
   s.setResolution(32);s.reset({wind:.32});replay();assert.deepEqual(s.packRGBA(new Float32Array(first.length)),first);

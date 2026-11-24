@@ -12,7 +12,7 @@
   // The submitted state may be one worker tick ahead. Every visible backend,
   // actor, trail and shader clock renders this last completed snapshot instead.
   const renderState={time:0,actors:[],trails:[]},simulationClock=new F.FixedStepClock();
-  let pendingTick=null,committedTicks=0,statTicks=0,lastSimulationHz=0;
+  let pendingTick=null,committedTicks=0,statTicks=0,lastSimulationHz=0,cpuFieldReadyForLabels=true;
   const modeNames={analytical:'Analytical',hybrid:'Hybrid',fluid:'GPU fluids',cpu:'CPU fluids'};
   const modeColors={analytical:'#c4b8f6',hybrid:'#b0ecd2',fluid:'#e5d09b',cpu:'#a6c9f4'};
   const renderNames={mesh:'reactive mesh',raymarch:'shallow raymarch',layered:'mesh + volume'};
@@ -108,12 +108,13 @@
     for(const sim of Object.values(sims))sim.setObstacles(obstacles,settings.obstacles);
   }
   function refreshLabels(){
+    cpuFieldReadyForLabels=sims?.cpu?.fieldReady!==false;
     const panes=paneConfigs();$('paneLabels').replaceChildren();
     panes.forEach((p,i)=>{
       const el=document.createElement('div');el.className='pane-label';el.style.left=`calc(${i*100/panes.length}% + ${panes.length===1?32:18}px)`;el.style.borderColor=modeColors[p.mode];
       const passes=p.mode==='analytical'||p.mode==='cpu'?0:p.mode==='hybrid'?1:settings.pressure+(settings.vorticity>.001?7:6);
       const cpuExecution=sims?.cpu?.execution||settings.cpuExecution;
-      const heading=document.createElement('strong');heading.textContent=modeNames[p.mode];const subtitle=document.createElement('p');subtitle.textContent=p.mode==='cpu'?`${settings.resolution}² ${cpuExecution==='worker'?'worker':'main-thread'} solve + upload · ${renderNames[p.renderer]}`:`${passes} GPU state passes · ${renderNames[p.renderer]}`;
+      const heading=document.createElement('strong');heading.textContent=modeNames[p.mode];const subtitle=document.createElement('p');subtitle.textContent=p.mode==='cpu'?(cpuFieldReadyForLabels?`${settings.resolution}² ${cpuExecution==='worker'?'worker':'main-thread'} solve + upload · ${renderNames[p.renderer]}`:'Preparing CPU field…'):`${passes} GPU state passes · ${renderNames[p.renderer]}`;
       el.append(heading,subtitle);$('paneLabels').append(el);
       if(i){const divider=document.createElement('div');divider.className='pane-divider';divider.style.left=(100*i/panes.length)+'%';$('paneLabels').append(divider);}
     });
@@ -340,7 +341,7 @@
     // Reject before moving actors or consuming an input. The worker owns at
     // most one solve; the clock retains only a small, bounded time budget.
     if(pendingTick||cpu?.pending||cpu?.needsResync)return false;
-    if(cpu&&!cpu.supported)throw new Error('No CPU execution path is available. '+cpu.fallbackReason);
+    if(cpu&&!cpu.supported){recoverUnavailableCPU();return false;}
     dt=Math.min(dt,1/20);
     state.time+=dt;state.pulseAge+=dt;const t=state.time,solids=settings.obstacles?world.getObstacles():[];
     for(let i=0;i<state.actors.length;i++){
@@ -395,8 +396,8 @@
   }
   function flushSimulation(){
     const cpu=activeModes().has('cpu')?sims?.cpu:null;
+    if(cpu&&!cpu.supported){recoverUnavailableCPU();return 0;}
     if(cpu?.needsResync){
-      if(!cpu.supported)throw new Error('No CPU execution path is available. '+cpu.fallbackReason);
       reset(true);refreshLabels();toast('CPU worker stopped. Main-thread fallback; all fields restarted.');return 0;
     }
     if(!pendingTick)return 0;
@@ -406,6 +407,14 @@
     if(cpu.simulationTime+1e-8<pendingTick.time)return 0;
     if(Math.abs(cpu.simulationTime-pendingTick.time)>1e-8)throw new Error('CPU and render simulation clocks diverged.');
     const tick=pendingTick;pendingTick=null;return commitTick(tick);
+  }
+  function recoverUnavailableCPU(){
+    // A terminal CPU initialization fault must not take the graphics view down.
+    // The normal worker-only fault uses the main-thread path above instead.
+    sims.cpu?.dispose();delete sims.cpu;
+    if(state.mode==='cpu')state.mode='analytical';
+    if(state.compareMode==='cpu')state.compareMode='analytical';
+    reset(true);refreshSetupControls();toast('CPU initialization failed. Analytical selected; the scene remains available.');
   }
 
   function resize(){
@@ -424,6 +433,7 @@
   function draw(){
     if(!canRender())return false;
     const completed=flushSimulation();if(completed)world.update(renderState.time,completed,renderState.actors,settings);
+    if(cpuFieldReadyForLabels!==(sims.cpu?.fieldReady!==false))refreshLabels();
     if(needsResize)resize();
     const panes=paneConfigs(),width=canvas.width,height=canvas.height,paneWidth=Math.floor(width/panes.length);
     renderer.setScissorTest(false);renderer.setRenderTarget(sceneRT);renderer.setViewport(0,0,paneWidth,height);renderer.setClearColor(0x162b2c,1);renderer.clear(true,true,true);renderer.render(world.scene,camera);
@@ -432,9 +442,12 @@
     panes.forEach((p,i)=>{
       const x=i*paneWidth,w=i===panes.length-1?width-x:paneWidth;
       renderer.setRenderTarget(null);renderer.setViewport(x,0,w,height);renderer.setScissor(x,0,w,height);renderer.setScissorTest(true);
-      const sim=sims[p.mode];
+      const sim=sims[p.mode],fieldReady=p.mode!=='cpu'||sim?.fieldReady!==false;
       sim?.prepareDebug?.(settings.debug);
-      fog.render({camera,sceneTexture:sceneRT.texture,depthTexture:sceneRT.depthTexture,width:w,height,time:renderState.time,settings,mode:p.mode,renderMode:p.renderer==='mesh'&&settings.meshLayers===4?'shells':p.renderer,fieldTexture:sim?.texture,velocityTexture:sim?.velocityTexture,pressureTexture:sim?.pressureTexture,curlTexture:sim?.curlTexture,divergenceTexture:sim?.divergenceTexture,obstacleTexture:sim?.obstacleTexture||sims.fluid.obstacleTexture,trails:renderState.trails,target:null});
+      // A resetting worker has no field for this generation yet. Show the
+      // scene with a preparation label instead of sampling its previous result.
+      const visibleSim=fieldReady?sim:null,visibleSettings=fieldReady?settings:{...settings,density:0,debug:'beauty',wireframe:false};
+      fog.render({camera,sceneTexture:sceneRT.texture,depthTexture:sceneRT.depthTexture,width:w,height,time:renderState.time,settings:visibleSettings,mode:p.mode,renderMode:p.renderer==='mesh'&&settings.meshLayers===4?'shells':p.renderer,fieldTexture:visibleSim?.texture,velocityTexture:visibleSim?.velocityTexture,pressureTexture:visibleSim?.pressureTexture,curlTexture:visibleSim?.curlTexture,divergenceTexture:visibleSim?.divergenceTexture,obstacleTexture:visibleSim?.obstacleTexture||sims.fluid.obstacleTexture,trails:renderState.trails,target:null});
       lastFogPasses+=fog.passCount;
     });
     renderer.setScissorTest(false);renderer.setViewport(0,0,width,height);

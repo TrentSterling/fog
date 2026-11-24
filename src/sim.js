@@ -726,7 +726,12 @@
         }
         result.divergenceBeforeRMS = Math.sqrt(preSquared / Math.max(fluidCells,1));
         result.divergenceAfterRMS = Math.sqrt(postSquared / Math.max(fluidCells,1));
-        result.divergenceReduction = 1 - result.divergenceAfterRMS / Math.max(result.divergenceBeforeRMS, 1e-8);
+        // There is no meaningful percentage until a nonzero pre-projection
+        // baseline exists, including immediately after a field reset.
+        result.projectionMeasured = Number.isFinite(result.divergenceBeforeRMS)
+          && Number.isFinite(result.divergenceAfterRMS) && result.divergenceBeforeRMS > 1e-8;
+        result.divergenceReduction = result.projectionMeasured
+          ? 1 - result.divergenceAfterRMS / result.divergenceBeforeRMS : null;
       }
       return result;
     }

@@ -12,7 +12,7 @@ const rejects = (fn,code) => assert.throws(fn,error=>error.name==='PresetError'&
 
 test('complete setup round-trips through a canonical base64url fragment',()=>{
   const preset=P.defaultPreset();
-  Object.assign(preset.settings,{height:1.7,quality:'high',meshLayers:4,terrain:'hills',paused:true,wireframe:true,debug:'velocity'});
+  Object.assign(preset.settings,{height:1.7,quality:'high',meshLayers:4,terrain:'hills',paused:true,wireframe:true,debug:'velocity',cpuExecution:'main'});
   Object.assign(preset.view,{mode:'hybrid',renderer:'mesh',layout:'compare',compareMode:'fluid',compareRenderer:'raymarch',auto:false,actorCount:4});
   Object.assign(preset.camera,{theta:-2.1,phi:1.35,distance:22,mode:0});
   const hash=P.encodeHash(preset);
@@ -58,7 +58,7 @@ test('numeric settings clamp safely and only quality controls field allocation',
 });
 
 test('enums, booleans and structures are validated rather than coerced',()=>{
-  for(const settings of [{terrain:'ocean'},{quality:'ultra'},{debug:'javascript:alert(1)'},{meshLayers:3},{wireframe:'true'},{paused:1}])rejects(()=>P.validatePreset({...minimal(),settings}));
+  for(const settings of [{terrain:'ocean'},{quality:'ultra'},{debug:'javascript:alert(1)'},{meshLayers:3},{wireframe:'true'},{paused:1},{cpuExecution:'remote'}])rejects(()=>P.validatePreset({...minimal(),settings}));
   for(const view of [{mode:'compute'},{renderer:'raster'},{layout:'quad'},{actorCount:2},{auto:'false'},{compareRenderer:'none'}])rejects(()=>P.validatePreset({...minimal(),view}));
   rejects(()=>P.validatePreset({...minimal(),camera:{mode:7}}));
   for(const input of [null,[],{...minimal(),settings:[]},{...minimal(),view:null},{...minimal(),camera:[]}])rejects(()=>P.validatePreset(input));
@@ -94,6 +94,7 @@ test('legacy version 1 JSON remains compatible; future versions are explicit err
   const normalized=P.parseJSON(JSON.stringify(old));
   assert.equal(normalized.settings.density,.93);assert.equal(normalized.settings.height,1.25);
   assert.equal(normalized.view.auto,true);assert.equal(normalized.settings.meshLayers,1);
+  assert.equal(normalized.settings.cpuExecution,'worker');
   assert.deepEqual(json(normalized.camera),json(P.DEFAULT_CAMERA));
   rejects(()=>P.validatePreset({...old,version:2}),'UNSUPPORTED_VERSION');
   rejects(()=>P.validatePreset({...old,version:'1'}),'UNSUPPORTED_VERSION');
