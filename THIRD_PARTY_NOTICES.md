@@ -36,6 +36,10 @@ The FogLab application, shaders, and procedurally constructed stage are covered 
 
 ## Reference material
 
-The [original ground-fog video](https://www.youtube.com/watch?v=Sm8x4lOGOYE) and the academic/GPU Gems publications listed in [How it works](docs/how-it-works.md#references) are credited as visual or technical references. They are not bundled dependencies, and this repository's MIT license does not relicense those publications or the video.
+The [original ground-fog video](https://www.youtube.com/watch?v=Sm8x4lOGOYE) and the academic/GPU Gems publications listed in [CREDITS.md](CREDITS.md) and [How it works](docs/how-it-works.md#references) are credited as visual or technical references. They are not bundled dependencies, and this repository's MIT license does not relicense those publications or the video. The video and its frames are not included in the public build.
 
-FogLab does not claim to reproduce Nintendo's proprietary implementation or include Nintendo's code, shaders, models, or artwork.
+FogLab does not claim to reproduce Nintendo's proprietary implementation or include Nintendo's code, shaders, models, or artwork. FogLab is not affiliated with Nintendo or the reference video's creator.
+
+## Accessible notices
+
+The standalone HTML includes the complete FogLab and Three.js MIT notices in the Credits panel, so they remain readable offline. Research credits and development acknowledgments are also available in [CREDITS.md](CREDITS.md).

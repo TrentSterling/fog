@@ -2,13 +2,14 @@
 
 FogLab separates two questions: **what moves the fog, and how do we draw it?** A pressure solver does not require raymarching. A raymarcher does not require a pressure solver. Keeping those decisions separate is the point of the demo.
 
-This guide describes release **0.2.0**, particularly [sim.js](../src/sim.js), [fog.js](../src/fog.js), and [app.js](../src/app.js). The implementation is a visual approximation inspired by the [reference video](https://www.youtube.com/watch?v=Sm8x4lOGOYE), not a claim about Nintendo's engine.
+This guide describes release **0.3.0**, particularly [sim.js](../src/sim.js), [fog.js](../src/fog.js), [cpu-worker-sim.js](../src/cpu-worker-sim.js), and [app.js](../src/app.js). The implementation is a visual approximation inspired by the [reference video](https://www.youtube.com/watch?v=Sm8x4lOGOYE), not a claim about Nintendo's engine. The 0.3 upgrade changes CPU execution and update scheduling while preserving the fog shaders and established visual controls.
 
 ## Start with controlled comparisons
 
 1. **Motion:** choose A/B, put Hybrid on the left and Stable fluids on the right, and give both the same Mesh renderer. Reset and watch the same automatic path. Differences now come mainly from the motion model.
 2. **Rendering:** choose Stable fluids in both panes, with Mesh on one side and Raymarch on the other. Both sample the same simulation texture; compare volume, intersections, and view dependence.
 3. **Inspect:** pause and select Density or Velocity. Single-step the simulation, then return to the final fog. Use the mesh wireframe to separate geometry changes from texture detail.
+4. **CPU execution:** select CPU fluids and compare Worker with Main thread at 64². Watch frame rate, completed simulation ticks per second, and solve time together; a responsive camera does not establish a faster solver.
 
 Camera, actors, terrain, noise assets, and interaction events are shared. The opaque world is rendered once for the pane aspect ratio and reused. The visible motion backends update at fixed **1/30-second steps**; multiple renderers using the same backend do not advance it twice. Share links preserve configuration and reset the initial world, not GPU texture contents or a particular moment in the wake.
 
@@ -75,11 +76,27 @@ Vorticity confinement reinforces rotation lost to the coarse grid. Actor motion 
 
 ### CPU fluids: solve in typed arrays
 
-[src/cpu-solver.js](../src/cpu-solver.js) performs semi-Lagrangian transport, the same force kernels, curl/confinement, Jacobi pressure projection, and exponential density recovery in JavaScript. State lives in typed arrays. [cpu-sim.js](../src/cpu-sim.js) packs a shared RGBA texture for rendering; the solver does not read back GPU textures. CPU resources are allocated on first selection and retained for switching. Only visible backends advance.
+[src/cpu-solver.js](../src/cpu-solver.js) performs semi-Lagrangian transport, the same force kernels, curl/confinement, Jacobi pressure projection, and exponential density recovery in JavaScript. State lives in typed arrays. The solver does not read back GPU textures. CPU resources are allocated when the CPU backend is selected; a scene using only GPU or Analytical motion does not create a CPU worker. Only visible backends advance.
 
 The CPU / GPU guide explicitly selects 64² for both backends, with the same camera, input path, pressure iterations, and renderer. Quality can raise both to 128² or 256². CPU Float32 arithmetic, base-mip noise sampling, and GPU half-float targets with implicit noise mip levels do not give bitwise-identical results; both implementations use the same units, equations, boundaries, and source shapes. At coarse grids, pressure iteration count and numerical diffusion remain visible.
 
-The current CPU implementation runs on the main thread. It is a useful reference for CPU tools, not a claim that JavaScript beats the GPU or a worker/Wasm implementation. Solve and packing time are reported per tick. The field upload uses RGBA32F if float linear filtering is available, otherwise RGBA16F packing. Auxiliaries for pressure, curl, and divergence are scheduled for upload only when inspected.
+**Worker is the default CPU execution mode.** The explicit Main thread option uses [cpu-sim.js](../src/cpu-sim.js), so both modes execute the same solver. The standalone build embeds the actual [field-utils.js](../src/field-utils.js), [cpu-solver.js](../src/cpu-solver.js), and [cpu-worker.js](../src/cpu-worker.js) sources into a classic Blob worker. There is no second solver implementation to keep in sync, no fetched worker script, and no requirement for SharedArrayBuffer or cross-origin isolation.
+
+[cpu-worker-sim.js](../src/cpu-worker-sim.js) owns the Three.js upload textures on the main thread. Each completed worker task transfers a separate packed field buffer. The adapter copies it into a persistent texture array and returns the packet buffer for reuse on a later task. The live renderer array and the worker's evolving simulation arrays are never transferred or detached. The field packet is RGBA32F if float linear filtering is available, otherwise packed RGBA16F. An inspected pressure, curl, or divergence field adds a scalar Float32 packet; those auxiliaries are not sent with every beauty-view tick.
+
+The adapter permits **one outstanding task**, so a slow worker does not collect a queue of old actor inputs. Reset, resolution, and obstacle changes advance a generation identifier. A result from an older generation is discarded before it can overwrite the new field. Pending configuration changes are coalesced around the running task. If worker creation, messaging, or execution fails, the app displays the fallback, switches to the main-thread solver, and restarts all backends together. That restart is intentional: a fresh CPU field must not be compared with an older GPU field.
+
+Moving the calculation off the main thread allows camera updates and drawing to continue while it is busy. It does not reduce the number of pressure iterations or eliminate packing, delivery, copying, and GPU uploads. Whether it raises frame rate or simulation throughput depends on the browser, device, grid, and scene. Start at 64² and measure.
+
+### Update scheduling and completed ticks
+
+[fixed-step.js](../src/fixed-step.js) tracks a **1/30-second simulation step**, a maximum of **three accepted steps per display frame**, and a maximum retained backlog of **0.1 seconds**. It tracks elapsed time only; rendering still uses the browser's animation loop. When the worker is busy, the application does not consume another tick or advance the simulation inputs.
+
+For a CPU / GPU comparison, each accepted tick has one shared snapshot of actors, interactions, settings, and simulation time. The CPU worker receives that snapshot. When its result is ready, the corresponding GPU work completes from the same snapshot before the next draw. Until then, every pane renders the previous completed simulation tick while camera controls and rendering remain active. Sharing a time step makes the comparison coherent; Float32 CPU and half-float GPU arithmetic still differ.
+
+If elapsed time exceeds the backlog budget, the clock records the excess as **discarded overload time**. It does not replay an unlimited backlog later. The consequence is slower simulation progress under sustained load, rather than unbounded latency. The interface reports actual completed ticks per second separately from display frame rate and the nominal 30 Hz target. Discarded seconds describe wall-clock budget removed by the scheduler; they do not measure CPU execution cost or data loss in the fields.
+
+Pause and hidden-tab handling clear retained elapsed time. The first resumed frame ignores a possibly stale interval, preventing a return-to-tab burst. A requested single-step advances one fixed tick while paused. A full reset clears timing history and invalidates any pending comparison batch.
 
 ### Obstacles and swept interactions
 
@@ -144,13 +161,17 @@ Every GPU simulation render target in this release is **RGBA16F: eight bytes per
 
 Each GPU backend also owns an R8 obstacle mask, adding N² bytes: 4 KiB, 16 KiB, or 64 KiB per backend at the listed resolutions. These are calculated texture payload sizes from [the allocator](../src/sim.js), not measurements of driver/GPU memory. They exclude noise, scene color/depth, fog targets, shadows, geometry, materials, and overhead. The application constructs both simulation backends for switching, so selecting Analytical does **not** free the two backends' allocations. A standalone analytical implementation could omit them.
 
-The CPU field upload is 16 bytes per cell in RGBA32F, or 8 bytes in the half-float fallback. At 64² that is 64 KiB or 32 KiB per scheduled tick; at 128² it is 256 KiB or 128 KiB. An inspected scalar auxiliary adds 4 bytes per cell. Several CPU ticks before one draw can coalesce into one upload. The UI reports the payload per scheduled tick, not PCIe traffic or measured transfer latency. CPU typed-array memory, GPU upload textures, and GPU simulation render targets are separate budgets.
+The CPU field upload is 16 bytes per cell in RGBA32F, or 8 bytes in the half-float fallback. At 64² that is 64 KiB or 32 KiB per scheduled tick; at 128² it is 256 KiB or 128 KiB. An inspected scalar auxiliary adds 4 bytes per cell. Worker messages use separate reusable packets of these sizes; the persistent Three.js arrays still require a CPU copy and a later GPU upload. Several main-thread CPU ticks before one draw can coalesce into one upload. The UI reports payload per completed tick, not PCIe traffic or measured transfer latency. CPU solver arrays, transfer packets, GPU upload textures, and GPU simulation render targets are separate budgets.
 
 ### Rendering and timing
 
 A mesh view normally performs one fog draw plus the composite. A raymarch view also performs one fog draw plus the composite, but the fragment shader has much more work. Four shells need four fog draws plus the composite; Layered needs mesh, volume, and composite. Wireframe adds another draw. The opaque scene and its shadows are separate.
 
-The optional GPU timer samples a whole frame every tenth display frame and smooths its result. It includes the scene, the simulation work due in that frame, and all visible fog panes. The fixed-step update means a sampled frame may contain zero or several simulation steps. When GPU timer queries are unavailable, the UI reports CPU frame time (simulation, scene updates, and draw submission) instead. Neither an FPS number nor native software-rendered preview footage establishes Quest performance.
+The optional GPU timer samples a whole frame every tenth display frame and smooths its result. It includes the scene, the GPU simulation work due in that frame, and all visible fog panes. The fixed-step update means a sampled frame may contain zero or several simulation steps. When GPU timer queries are unavailable, the UI reports main-thread CPU frame time: accepted synchronous simulation work, scene updates, and draw submission. It excludes time spent solving on a worker.
+
+CPU solve plus packing time is reported per completed tick. Worker round-trip time covers the interval from submitting a request through scheduling, solving, packing, diagnostics, delivery, and the main-thread texture copy. GPU upload happens later and is excluded from these CPU measurements. The round trip can be longer than solve plus packing without indicating additional numerical work.
+
+Read **display FPS**, **actual simulation ticks per second**, and **discarded overload time** together. A 60 FPS display can redraw a field that is advancing below 30 Hz. A worker can improve input responsiveness while leaving total solve throughput unchanged or lower. Neither an FPS number nor native software-rendered preview footage establishes Quest performance.
 
 For a useful comparison, keep the camera, scene, settings, browser, and device fixed; let the scene settle; use Solo; and record the configuration with the observation. A/B is for visual comparisons, not isolated per-backend timing. Opt-in diagnostics read textures back synchronously and should not run during a timing measurement.
 
@@ -160,7 +181,11 @@ For a useful comparison, keep the camera, scene, settings, browser, and device f
 - Port motion and rendering separately. A texture-driven mesh is a valid renderer for the full solver.
 - Shader export includes original blocks. It does not supply an engine's uniforms, matrix conventions, color management, or shader-prefix code.
 - Semi-Lagrangian diffusion, finite pressure iterations, artistic density recovery, and a fixed local domain are deliberate limits of this prototype.
-- There is no 3D buoyancy solve, moving or general triangle-mesh obstacle coupling, MacCormack advection, WebGPU compute implementation, WebXR path, or certified mobile/VR performance target in 0.2.0.
+- There is no 3D buoyancy solve, moving or general triangle-mesh obstacle coupling, MacCormack advection, Wasm solver, WebGPU compute implementation, WebXR path, or certified mobile/VR performance target in 0.3.0.
+
+## Credits and reuse
+
+FogLab is by [Trent Sterling / Tront](https://tront.xyz/). The [complete credits](../CREDITS.md) identify the visual reference, technical publications, bundled engine, and development assistance. The demo's Credits panel embeds the reference list and full FogLab and Three.js MIT notices, so attribution stays readable in the offline HTML. The linked papers and video are references rather than bundled assets. See [LICENSE](../LICENSE) and [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) for the complete software notices.
 
 ## References
 

@@ -18,7 +18,7 @@
     pressure:18,vorticity:.38,resolution:128,terrain:'flat',lighting:'reference',environment:'reference',
     paused:false,quality:'balanced',raySteps:32,renderScale:.8,wireframe:false,debug:'beauty',meshLayers:1,
     obstacles:true,obstacleCourse:false,wakeStyle:'paired',densityProfile:'billows',heightMode:'world',
-    detailStrength:1,heightShear:1,lightingModel:'directional'
+    detailStrength:1,heightShear:1,lightingModel:'directional',cpuExecution:'worker'
   });
   const DEFAULT_VIEW = Object.freeze({
     mode:'fluid',renderer:'raymarch',layout:'single',compareMode:'hybrid',compareRenderer:'same',actorCount:1,auto:true
@@ -37,7 +37,7 @@
   const SETTING_ENUMS = Object.freeze({
     terrain:['flat','hills'],lighting:['reference','day','dusk','night'],environment:['reference','forest'],
     quality:['low','balanced','high'],debug:['beauty','density','velocity','uv','pressure','curl','divergence','obstacles'],meshLayers:[1,4],
-    wakeStyle:['paired','radial','tangential'],densityProfile:['billows','column'],heightMode:['world','terrain'],lightingModel:['directional','ambient']
+    wakeStyle:['paired','radial','tangential'],densityProfile:['billows','column'],heightMode:['world','terrain'],lightingModel:['directional','ambient'],cpuExecution:['worker','main']
   });
   const VIEW_ENUMS = Object.freeze({
     mode:['analytical','hybrid','fluid','cpu'],renderer:['mesh','raymarch','layered'],layout:['single','compare','triple'],

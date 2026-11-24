@@ -1,6 +1,6 @@
 {
   "name": "foglab",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "CPU and GPU fluid simulation, interactive wakes and obstacles, and interchangeable fog renderers in Three.js.",
   "license": "MIT",

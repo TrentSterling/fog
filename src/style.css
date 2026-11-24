@@ -80,3 +80,32 @@ a:focus-visible,textarea:focus-visible{outline:2px solid var(--mint);outline-off
 /* v0.2 controls and CPU timing stay readable on narrow screens. */
 .blue{color:#a6c9f4}.cpu-metrics{margin-top:20px;padding-top:17px;border-top:1px solid var(--line)}.cpu-metrics strong{font-size:20px}.two-controls{margin-top:16px}.transport{flex-wrap:wrap;justify-content:center;max-width:calc(100vw - 24px)}.guide-actions{max-width:740px}.learning-experiments{grid-template-columns:repeat(2,minmax(0,1fr))}.guide-copy{min-width:180px}
 @media(max-width:760px){.guide-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%;max-width:none}.guide-actions button{font-size:12px}.guide-copy{min-width:0}.transport button{padding:8px 7px}.transport-sep{margin:0 2px}.learning-experiments{grid-template-columns:1fr}}
+
+/* v0.3: visible credits and CPU execution diagnostics. */
+.credits-button{flex-shrink:0;background:transparent;color:#a8c8b8;border-color:#344b42}
+.cpu-execution-row{padding-top:2px}
+.cpu-execution-row select{max-width:170px;min-width:0}
+.cpu-execution-row .inline-label{font-size:12px;gap:8px}
+.runtime-metrics{margin-top:20px;padding-top:17px;border-top:1px solid var(--line)}
+.runtime-metrics strong{font-size:20px;letter-spacing:-.8px;font-variant-numeric:tabular-nums}
+.runtime-note{padding:9px 10px;border-left:2px solid #547b65;background:#10241f;border-radius:0 4px 4px 0;overflow-wrap:anywhere}
+.credits-dialog .dialog-head{align-items:flex-start}
+.credits-dialog .dialog-head .icon-button{flex-shrink:0}
+.credits-content{overflow-wrap:anywhere}
+.credits-content #creditsIntro{font-size:12px;color:#8faea0;margin-top:14px}
+.credits-content .credits-creator{font-size:14px}
+.dialog-content .credits-list{list-style:none;padding:0;margin:18px 0 24px;display:grid;gap:17px}
+.credits-entry{padding-bottom:17px;border-bottom:1px solid #2e443b}
+.credits-entry:last-child{padding-bottom:0;border-bottom:0}
+.credits-entry strong{font-size:13px;font-weight:600;color:#d2e8da}
+.credits-entry .credits-role,.credits-entry .credits-links{font-size:12px;line-height:1.65;margin:4px 0 0}
+.credits-entry .credits-links a{display:inline;overflow-wrap:anywhere}
+.credits-acknowledgments{font-size:12px}
+.credits-license{margin:24px 0 18px;padding:14px 0;border-top:1px solid #344d43;border-bottom:1px solid #344d43}
+.credits-license summary{cursor:pointer;font-size:13px;color:#c9e5d2}
+.credits-license p{font-size:12px;line-height:1.7}
+.credits-license h4{font-size:13px;margin:20px 0 10px;color:#c8e3d1}
+.credits-license pre{white-space:pre-wrap;overflow-wrap:anywhere;font:11px/1.7 var(--mono);color:#a8c4b5;background:#0c1b1d;border:1px solid #304b3e;border-radius:6px;padding:14px;margin:0}
+.credits-source{font-size:12px;margin-top:18px}
+@media(max-width:760px){.topbar>.credits-button{margin-left:auto;min-height:29px;padding:5px 10px;font-size:11px}.cpu-execution-row select{max-width:163px}}
+@media(max-width:540px){.credits-entry strong{font-size:12px}.credits-license pre{font-size:10px;padding:11px}.credits-dialog .dialog-head h2{font-size:24px}}

@@ -9,6 +9,10 @@
   const defaults=P.DEFAULT_SETTINGS;
   const settings={...defaults};
   const state={...P.DEFAULT_VIEW,cameraMode:P.DEFAULT_CAMERA.mode,time:0,frame:0,trails:[],actors:[],lastStamp:0,accumulator:0,pulseAge:99,pulseX:0,pulseZ:0,ready:false,halted:false};
+  // The submitted state may be one worker tick ahead. Every visible backend,
+  // actor, trail and shader clock renders this last completed snapshot instead.
+  const renderState={time:0,actors:[],trails:[]},simulationClock=new F.FixedStepClock();
+  let pendingTick=null,committedTicks=0,statTicks=0,lastSimulationHz=0;
   const modeNames={analytical:'Analytical',hybrid:'Hybrid',fluid:'GPU fluids',cpu:'CPU fluids'};
   const modeColors={analytical:'#c4b8f6',hybrid:'#b0ecd2',fluid:'#e5d09b',cpu:'#a6c9f4'};
   const renderNames={mesh:'reactive mesh',raymarch:'shallow raymarch',layered:'mesh + volume'};
@@ -36,6 +40,7 @@
     get fog(){return fog;},get camera(){return camera;},get sceneRT(){return sceneRT;},
     get ready(){return initializationComplete;},get renderReady(){return canRender()&&state.ready;},
     get simulationSupported(){return simulationSupported;},
+    get runtime(){return {version:F.BuildInfo?.version||'0.3.0',submittedTime:state.time,renderTime:renderState.time,committedTicks,pending:!!pendingTick,simulationHz:lastSimulationHz,droppedSeconds:simulationClock.droppedSeconds,cpuExecution:sims?.cpu?.execution||null};},
     snapshotPreset,applyPreset,showToast:toast,copyShareLink,getShareURL:()=>P.buildShareURL(snapshotPreset(),location.href),
     setMode,setLayout,setRenderMode,setQuality,reset,pulse,jump,slash,physicsStep,draw,
     diagnostics:()=>canRender()?{available:true,hybrid:sims.hybrid.getDiagnostics(),fluid:sims.fluid.getDiagnostics(),cpu:sims.cpu?.getDiagnostics()||null,errors:[...errors]}:
@@ -50,10 +55,10 @@
     $('errorText').textContent=String(error&&error.message||error)+' · You can still explore the methods and prepare a shareable setup. Try a current browser with hardware acceleration for the live view.';
     $('capability').textContent='WEBGL UNAVAILABLE';
     const liveTag=document.querySelector('.live-tag');if(liveTag)liveTag.textContent='SETUP';
-    for(const id of ['fps','gpuTime','simPasses','drawCalls'])$(id).textContent='—';
+    for(const id of ['fps','gpuTime','simPasses','drawCalls','simulationRate','workerLatency'])$(id).textContent='—';
     $('timingBadge').textContent='SETUP';$('gpuLabel').textContent='no live render';$('perfBar').style.width='0%';
     $('perfNote').textContent='No live measurements are available. The selected settings can still be inspected and shared.';
-    $('cpuMetrics').hidden=true;
+    $('cpuMetrics').hidden=true;$('workerLatencyMetric').hidden=true;$('runtimeNote').hidden=true;
     $('statusText').textContent='Setup only · live rendering unavailable';announceReady();
   }
   window.addEventListener('error',e=>{if(!state.halted)fail(e.error||e.message);});
@@ -87,8 +92,14 @@
   function activeModes(){return new Set(paneConfigs().map(x=>x.mode));}
   const isGPU=mode=>mode==='hybrid'||mode==='fluid';
   function ensureCPU(){
-    if(!renderer||!noise||!sims||sims.cpu||!activeModes().has('cpu'))return;
-    sims.cpu=new F.CPUFieldSimulation(renderer,noise,{resolution:settings.resolution,worldSize:32});
+    if(!renderer||!noise||!sims)return;
+    if(sims.cpu&&sims.cpu.requestedExecution!==settings.cpuExecution){sims.cpu.dispose();delete sims.cpu;}
+    if(sims.cpu||!activeModes().has('cpu'))return;
+    const Simulation=settings.cpuExecution==='main'?F.CPUFieldSimulation:F.CPUWorkerSimulation;
+    sims.cpu=new Simulation(renderer,noise,{resolution:settings.resolution,worldSize:32});
+    // Keep the requested option separate from the actual execution path: a
+    // worker fault can fall back to main without recreating a broken worker.
+    sims.cpu.requestedExecution=settings.cpuExecution;
   }
   function syncObstacles(){
     if(!world||!sims)return;
@@ -101,15 +112,18 @@
     panes.forEach((p,i)=>{
       const el=document.createElement('div');el.className='pane-label';el.style.left=`calc(${i*100/panes.length}% + ${panes.length===1?32:18}px)`;el.style.borderColor=modeColors[p.mode];
       const passes=p.mode==='analytical'||p.mode==='cpu'?0:p.mode==='hybrid'?1:settings.pressure+(settings.vorticity>.001?7:6);
-      const heading=document.createElement('strong');heading.textContent=modeNames[p.mode];const subtitle=document.createElement('p');subtitle.textContent=p.mode==='cpu'?`${settings.resolution}² CPU solve + texture upload · ${renderNames[p.renderer]}`:`${passes} GPU state passes · ${renderNames[p.renderer]}`;
+      const cpuExecution=sims?.cpu?.execution||settings.cpuExecution;
+      const heading=document.createElement('strong');heading.textContent=modeNames[p.mode];const subtitle=document.createElement('p');subtitle.textContent=p.mode==='cpu'?`${settings.resolution}² ${cpuExecution==='worker'?'worker':'main-thread'} solve + upload · ${renderNames[p.renderer]}`:`${passes} GPU state passes · ${renderNames[p.renderer]}`;
       el.append(heading,subtitle);$('paneLabels').append(el);
       if(i){const divider=document.createElement('div');divider.className='pane-divider';divider.style.left=(100*i/panes.length)+'%';$('paneLabels').append(divider);}
     });
     $('comparisonPick').hidden=state.layout!=='compare';$('compareRendererRow').hidden=state.layout!=='compare';
+    $('cpuExecutionRow').hidden=!activeModes().has('cpu');
+    $('cpuExecution').value=settings.cpuExecution;
     $('backendLabel').textContent=state.layout==='triple'?'ALL THREE / '+state.renderer.toUpperCase():state.layout==='compare'?'A/B / '+state.renderer.toUpperCase():state.mode.toUpperCase()+' / '+state.renderer.toUpperCase();
     $('renderDescription').textContent=settings.heightMode==='terrain'?'Fog follows local terrain height. '+({mesh:'A displaced surface suggests the bank.',raymarch:'Integrate density through the local fog depth.',layered:'30% mesh + 70% volume share the density budget.'})[state.renderer]:renderDescriptions[state.renderer];
     $('heightHint').textContent=settings.heightMode==='world'?'A shared world ceiling lets hilltops emerge.':'A local fog depth follows the terrain, including hilltops.';
-    $('statusText').textContent=state.halted?'Setup only · live rendering unavailable':`${activeModes().size===1&&state.mode==='analytical'?'Analytical history':settings.resolution+'² field'} · 30 Hz · 256² static noise`;
+    $('statusText').textContent=state.halted?'Setup only · live rendering unavailable':`${activeModes().size===1&&state.mode==='analytical'?'Analytical history':settings.resolution+'² field'} · 30 Hz target · 256² static noise`;
     for(const el of document.querySelectorAll('[data-mode]'))el.classList.toggle('active',el.dataset.mode===state.mode);
     for(const el of document.querySelectorAll('[data-render]'))el.classList.toggle('active',el.dataset.render===state.renderer);
     for(const el of document.querySelectorAll('[data-layout]'))el.classList.toggle('active',el.dataset.layout===state.layout);
@@ -144,8 +158,11 @@
 
   function reset(silent=false){
     state.time=0;state.frame=0;state.accumulator=0;state.trails=[];state.lastStamp=-1;state.pulseAge=99;state.pulseX=state.pulseZ=0;
+    pendingTick=null;simulationClock.reset();committedTicks=statTicks=0;lastSimulationHz=0;
+    statStart=performance.now();statFrames=0;
     autoResume.x=autoResume.z=0;stepRequested=false;
     state.actors=Array.from({length:state.actorCount},(_,i)=>({...((i===0&&!state.auto)?{x:0,z:3}:automaticPosition(i,0)),vx:0,vz:0,radius:settings.radius,strength:1,jump:0,verticalVelocity:0,heading:0,slashAge:99}));
+    renderState.time=0;renderState.actors=state.actors.map(a=>({...a}));renderState.trails=[];
     pointer.stir=false;keys.clear();
     if(canRender()){ensureCPU();syncObstacles();for(const sim of Object.values(sims)){if(sim.uniforms?.uWind)sim.uniforms.uWind.value=settings.wind;sim.reset(settings);}}
     if(world)world.update(0,1/30,state.actors,settings);
@@ -168,6 +185,7 @@
   $('compareMode').onchange=e=>{if(canRender()&&!simulationSupported&&isGPU(e.target.value)){e.target.value=state.compareMode;toast('GPU fluid targets are unavailable.');return;}state.compareMode=e.target.value;reset(true);refreshLabels();};
   $('compareRenderer').onchange=e=>{state.compareRenderer=e.target.value;refreshLabels();};
   $('quality').onchange=e=>{setQuality(e.target.value);toast(e.target.options[e.target.selectedIndex].text+' quality');};
+  $('cpuExecution').onchange=e=>{settings.cpuExecution=e.target.value;reset(true);refreshLabels();toast(settings.cpuExecution==='worker'?'CPU solver moved to a background worker.':'CPU solver runs on the main thread.');};
   $('terrain').onchange=e=>{settings.terrain=e.target.value;world?.setTerrain(settings.terrain);};
   $('lighting').onchange=e=>{settings.lighting=e.target.value;world?.setLighting(settings.lighting);};
   $('environment').onchange=e=>{settings.environment=e.target.value;world?.setEnvironment(settings.environment);reset(true);$('scene-heading').querySelector('h1').textContent=settings.environment==='reference'?'Ground fog study':'The emerald ruins';};
@@ -183,7 +201,7 @@
     state.auto=value;$('autoButton').classList.toggle('active',value);$('autoButton').querySelector('span').textContent=value?'Auto walk':'Manual';
   }
   $('autoButton').onclick=()=>{setAuto(!state.auto);if(!state.auto)toast('WASD or arrow keys to move. Shift to sprint.');};
-  function setPause(value){settings.paused=value;stepRequested=false;state.accumulator=0;lastNow=performance.now();$('pauseButton').classList.toggle('active',value);$('pauseButton').setAttribute('aria-label',value?'Resume':'Pause');$('pauseButton').title=value?'Resume (P)':'Pause (P)';$('stepButton').disabled=!value;}
+  function setPause(value){settings.paused=value;stepRequested=false;state.accumulator=0;simulationClock.beginFrame(0,{paused:true});lastNow=performance.now();$('pauseButton').classList.toggle('active',value);$('pauseButton').setAttribute('aria-label',value?'Resume':'Pause');$('pauseButton').title=value?'Resume (P)':'Pause (P)';$('stepButton').disabled=!value;}
   $('pauseButton').onclick=()=>setPause(!settings.paused);
   $('stepButton').onclick=()=>{if(!canRender()){toast('A live graphics view is needed to step the simulation.');return;}if(settings.paused)stepRequested=true;};
   $('stepButton').disabled=true;
@@ -200,6 +218,10 @@
   function showHelp(){keys.clear();$('helpDialog').showModal();}
   $('helpButton').onclick=showHelp;$('aboutButton').onclick=showHelp;$('closeHelp').onclick=()=>$('helpDialog').close();
   $('helpDialog').addEventListener('click',e=>{if(e.target===$('helpDialog')){const r=$('helpDialog').getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)$('helpDialog').close();}});
+  F.Credits.render($('creditsContent'));
+  $('creditsButton').onclick=()=>{keys.clear();pointer.down=pointer.stir=false;$('creditsDialog').showModal();};
+  $('closeCredits').onclick=()=>$('creditsDialog').close();
+  $('creditsDialog').addEventListener('click',e=>{if(e.target===$('creditsDialog')){const r=$('creditsDialog').getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)$('creditsDialog').close();}});
 
   function download(blob,filename){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);}
   function snapshotPreset(){
@@ -208,7 +230,7 @@
       camera:{theta:orbit.targetTheta,phi:orbit.targetPhi,distance:orbit.targetDistance,mode:state.cameraMode}});
   }
   function refreshSetupControls(){
-    for(const key of ['terrain','lighting','environment','quality','densityProfile','heightMode','lightingModel','wakeStyle'])$(key).value=settings[key];
+    for(const key of ['terrain','lighting','environment','quality','densityProfile','heightMode','lightingModel','wakeStyle','cpuExecution'])$(key).value=settings[key];
     for(const key of ['obstacles','obstacleCourse'])$(key).checked=settings[key];
     $('debugView').value=settings.debug;$('wireframe').checked=settings.wireframe;$('actorCount').value=state.actorCount;
     $('compareMode').value=state.compareMode;$('compareRenderer').value=state.compareRenderer;
@@ -294,7 +316,7 @@
     if(e.code==='Space'){e.preventDefault();jump();}else if(e.code==='KeyX')slash();else if(e.code==='KeyF')pulse();else if(e.code==='KeyP')setPause(!settings.paused);else if(e.code==='KeyR')reset();else if(e.code==='KeyT')setAuto(!state.auto);else if(e.code==='KeyC')cycleCamera();else if(e.code==='KeyH')toggleUI();
   });
   window.addEventListener('keyup',e=>keys.delete(e.code));window.addEventListener('blur',()=>{keys.clear();pointer.down=pointer.stir=false;});
-  document.addEventListener('visibilitychange',()=>{lastNow=performance.now();state.accumulator=0;});
+  document.addEventListener('visibilitychange',()=>{lastNow=performance.now();state.accumulator=0;simulationClock.beginFrame(0,{visible:false});keys.clear();pointer.down=pointer.stir=false;});
   const canvas=$('viewport');canvas.addEventListener('contextmenu',e=>e.preventDefault());
   function mouseWorld(e){if(!camera||!world||state.halted)return null;const rect=canvas.getBoundingClientRect(),count=paneConfigs().length,w=rect.width/count,x=((e.clientX-rect.left)%w)/w*2-1,y=1-(e.clientY-rect.top)/rect.height*2;pointerNdc.set(x,y);raycaster.setFromCamera(pointerNdc,camera);const ray=raycaster.ray;if(ray.direction.y>=-.003)return null;let t=-ray.origin.y/ray.direction.y;const out=new T.Vector3();for(let i=0;i<4;i++){out.copy(ray.direction).multiplyScalar(t).add(ray.origin);t=(world.terrainHeight(out.x,out.z)-ray.origin.y)/ray.direction.y;}out.copy(ray.direction).multiplyScalar(t).add(ray.origin);return {x:clamp(out.x,-14.5,14.5),z:clamp(out.z,-14.5,14.5)};}
   function updateBrush(e){const pos=mouseWorld(e);if(!pos)return;const now=performance.now()/1000,dt=clamp(now-pointer.lastTime,.016,.15);pointer.vx=clamp((pos.x-pointer.worldX)/dt,-10,10);pointer.vz=clamp((pos.z-pointer.worldZ)/dt,-10,10);pointer.worldX=pos.x;pointer.worldZ=pos.z;pointer.lastTime=now;}
@@ -307,13 +329,19 @@
   function updateCamera(dt){
     if(!camera||!world)return;
     const f=1-Math.exp(-dt*12);orbit.theta+=(orbit.targetTheta-orbit.theta)*f;orbit.phi+=(orbit.targetPhi-orbit.phi)*f;orbit.distance+=(orbit.targetDistance-orbit.distance)*f;
-    const a=state.actors[0],follow=state.cameraMode===3&&a;
+    const a=renderState.actors[0],follow=state.cameraMode===3&&a;
     const goal=new T.Vector3(follow?a.x:0,follow?world.terrainHeight(a.x,a.z)+.72:.55,follow?a.z:-1);cameraTarget.lerp(goal,f);
     camera.position.set(cameraTarget.x+Math.sin(orbit.theta)*Math.sin(orbit.phi)*orbit.distance,cameraTarget.y+Math.cos(orbit.phi)*orbit.distance,cameraTarget.z+Math.cos(orbit.theta)*Math.sin(orbit.phi)*orbit.distance);
     camera.position.y=Math.max(camera.position.y,world.terrainHeight(camera.position.x,camera.position.z)+.35);camera.lookAt(cameraTarget);camera.updateMatrixWorld();
   }
   function physicsStep(dt){
-    if(!canRender())return false;
+    if(!canRender()||!Number.isFinite(dt)||dt<=0)return false;
+    const modes=[...activeModes()],cpu=modes.includes('cpu')?sims.cpu:null;
+    // Reject before moving actors or consuming an input. The worker owns at
+    // most one solve; the clock retains only a small, bounded time budget.
+    if(pendingTick||cpu?.pending||cpu?.needsResync)return false;
+    if(cpu&&!cpu.supported)throw new Error('No CPU execution path is available. '+cpu.fallbackReason);
+    dt=Math.min(dt,1/20);
     state.time+=dt;state.pulseAge+=dt;const t=state.time,solids=settings.obstacles?world.getObstacles():[];
     for(let i=0;i<state.actors.length;i++){
       const a=state.actors[i],ox=a.x,oz=a.z;
@@ -333,7 +361,6 @@
       a.strength=clamp(1-a.jump/Math.max(settings.height,.3),.15,1);
     }
     const segments=F.Interactions.advanceSlash(state.actors[0],dt,settings.radius);
-    world.recordSlash(segments,t);
     let interactors=state.actors.map(a=>({...a}));
     if(pointer.stir){if(performance.now()/1000-pointer.lastTime>.1){pointer.vx*=.8;pointer.vz*=.8;}interactors=interactors.slice(0,7);interactors.push({x:pointer.worldX,z:pointer.worldZ,vx:pointer.vx,vz:pointer.vz,radius:settings.radius*1.15,strength:1.4});}
     if(state.pulseAge<.7){interactors=interactors.slice(0,1);const radius=.3+state.pulseAge*7;for(let i=0;i<7;i++){const ang=i*Math.PI*2/7;interactors.push({x:state.pulseX+Math.cos(ang)*radius,z:state.pulseZ+Math.sin(ang)*radius,vx:Math.cos(ang)*8,vz:Math.sin(ang)*8,radius:settings.radius*.85,strength:1.6*(1-state.pulseAge/.8)});}}
@@ -345,7 +372,40 @@
     }
     for(const s of segments)state.trails.unshift({x:s.x1,z:s.z1,x0:s.x0,z0:s.z0,radius:s.radius,age:0,strength:s.strength,vx:s.vx,vz:s.vz});
     state.trails=state.trails.slice(0,24);
-    lastSimulationPasses=0;for(const mode of activeModes())if(mode!=='analytical'&&sims[mode]){sims[mode].step(dt,t,interactors,settings,segments);lastSimulationPasses+=sims[mode].passCount;}
+    const tick={dt,time:t,modes,interactors,segments,settings:{...settings},actors:state.actors.map(a=>({...a})),trails:state.trails.map(p=>({...p})),epoch:cpu?.epoch};
+    if(cpu){
+      pendingTick=tick;
+      if(cpu.step(dt,t,interactors,tick.settings,segments)!==true){
+        // A synchronous postMessage failure has already exposed its fallback.
+        // Restart the complete experiment rather than leaving moved actors
+        // paired with a field from the previous generation.
+        const reason=cpu.fallbackReason;reset(true);refreshLabels();toast(reason?'CPU worker unavailable. Main-thread fallback; fields restarted.':'CPU step was not accepted. Fields restarted.');return false;
+      }
+      flushSimulation();
+    }else commitTick(tick);
+    return true;
+  }
+
+  function commitTick(tick){
+    lastSimulationPasses=0;
+    for(const mode of tick.modes)if(mode!=='analytical'&&mode!=='cpu'&&sims[mode]){sims[mode].step(tick.dt,tick.time,tick.interactors,tick.settings,tick.segments);lastSimulationPasses+=sims[mode].passCount;}
+    world.recordSlash(tick.segments,tick.time);
+    renderState.time=tick.time;renderState.actors=tick.actors;renderState.trails=tick.trails;
+    committedTicks++;statTicks++;return tick.dt;
+  }
+  function flushSimulation(){
+    const cpu=activeModes().has('cpu')?sims?.cpu:null;
+    if(cpu?.needsResync){
+      if(!cpu.supported)throw new Error('No CPU execution path is available. '+cpu.fallbackReason);
+      reset(true);refreshLabels();toast('CPU worker stopped. Main-thread fallback; all fields restarted.');return 0;
+    }
+    if(!pendingTick)return 0;
+    if(!cpu||cpu.epoch!==pendingTick.epoch){reset(true);return 0;}
+    // Debug inspection can still be pending after a solve has completed.
+    // The committed timestamp, not the busy flag, is the comparison fence.
+    if(cpu.simulationTime+1e-8<pendingTick.time)return 0;
+    if(Math.abs(cpu.simulationTime-pendingTick.time)>1e-8)throw new Error('CPU and render simulation clocks diverged.');
+    const tick=pendingTick;pendingTick=null;return commitTick(tick);
   }
 
   function resize(){
@@ -363,6 +423,7 @@
 
   function draw(){
     if(!canRender())return false;
+    const completed=flushSimulation();if(completed)world.update(renderState.time,completed,renderState.actors,settings);
     if(needsResize)resize();
     const panes=paneConfigs(),width=canvas.width,height=canvas.height,paneWidth=Math.floor(width/panes.length);
     renderer.setScissorTest(false);renderer.setRenderTarget(sceneRT);renderer.setViewport(0,0,paneWidth,height);renderer.setClearColor(0x162b2c,1);renderer.clear(true,true,true);renderer.render(world.scene,camera);
@@ -373,7 +434,7 @@
       renderer.setRenderTarget(null);renderer.setViewport(x,0,w,height);renderer.setScissor(x,0,w,height);renderer.setScissorTest(true);
       const sim=sims[p.mode];
       sim?.prepareDebug?.(settings.debug);
-      fog.render({camera,sceneTexture:sceneRT.texture,depthTexture:sceneRT.depthTexture,width:w,height,time:state.time,settings,mode:p.mode,renderMode:p.renderer==='mesh'&&settings.meshLayers===4?'shells':p.renderer,fieldTexture:sim?.texture,velocityTexture:sim?.velocityTexture,pressureTexture:sim?.pressureTexture,curlTexture:sim?.curlTexture,divergenceTexture:sim?.divergenceTexture,obstacleTexture:sim?.obstacleTexture||sims.fluid.obstacleTexture,trails:state.trails,target:null});
+      fog.render({camera,sceneTexture:sceneRT.texture,depthTexture:sceneRT.depthTexture,width:w,height,time:renderState.time,settings,mode:p.mode,renderMode:p.renderer==='mesh'&&settings.meshLayers===4?'shells':p.renderer,fieldTexture:sim?.texture,velocityTexture:sim?.velocityTexture,pressureTexture:sim?.pressureTexture,curlTexture:sim?.curlTexture,divergenceTexture:sim?.divergenceTexture,obstacleTexture:sim?.obstacleTexture||sims.fluid.obstacleTexture,trails:renderState.trails,target:null});
       lastFogPasses+=fog.passCount;
     });
     renderer.setScissorTest(false);renderer.setViewport(0,0,width,height);
@@ -388,20 +449,37 @@
     $('simPasses').textContent=passes;$('drawCalls').textContent=frameDraws;
     $('perfBar').style.width=clamp((gpuMs??submitMs)/16.67*100,3,100)+'%';$('perfBar').style.background=(gpuMs??submitMs)>16.67?'#d1b27c':'#a4cdaa';
     $('perfNote').textContent=state.layout==='single'?`${Math.round(frameTriangles/1000)}k submitted triangles · ${lastFogPasses} fog draws. ${gpuMs===null?'CPU time is not GPU time.':'GPU includes the whole scene.'}`:`${paneConfigs().length} synchronized views · one shared scene render. Use Solo for isolated timing.`;
+    lastSimulationHz=statTicks*1000/elapsed;
+    $('simulationRate').textContent=lastSimulationHz.toFixed(1)+' / 30';
     const cpu=sims.cpu,cpuActive=activeModes().has('cpu');$('cpuMetrics').hidden=!cpuActive;
-    if(cpuActive&&cpu){$('cpuTimingScope').textContent=settings.paused?'last CPU tick · paused':'CPU solve + pack / tick';$('cpuSolve').textContent=(cpu.lastStepMs||0).toFixed(2)+' ms';$('cpuUpload').textContent=Math.round((cpu.uploadBytesPerTick||0)/1024)+' KiB';}
-    $('viewport').dataset.frames=state.frame;$('viewport').dataset.errors=errors.length;$('viewport').dataset.mode=state.mode;$('viewport').dataset.render=state.renderer;$('viewport').dataset.time=state.time.toFixed(2);
-    statStart=now;statFrames=0;
+    $('workerLatencyMetric').hidden=!(cpuActive&&cpu?.execution==='worker');
+    if(cpuActive&&cpu){$('cpuTimingScope').textContent=settings.paused?'last '+cpu.execution+' tick · paused':(cpu.execution==='worker'?'worker':'main')+' solve + pack / tick';$('cpuSolve').textContent=(cpu.lastStepMs||0).toFixed(2)+' ms';$('cpuUpload').textContent=Math.round((cpu.uploadBytesPerTick||0)/1024)+' KiB';$('workerLatency').textContent=(cpu.lastRoundTripMs||0).toFixed(1)+' ms';}
+    const notes=[];
+    if(cpuActive&&cpu){
+      if(cpu.fallbackReason)notes.push('Main-thread fallback: '+cpu.fallbackReason);
+      else if(cpu.execution==='worker')notes.push(cpu.pending?'Worker busy. Drawing the last completed tick.':'CPU solver runs in a background worker.');
+      else notes.push('CPU solver runs on the main thread.');
+    }
+    if(simulationClock.droppedSeconds>.05)notes.push(simulationClock.droppedSeconds.toFixed(1)+' s of excess wall-clock budget discarded since reset. Simulation slows under load.');
+    $('runtimeNote').textContent=notes.join(' ');$('runtimeNote').hidden=!notes.length;
+    $('viewport').dataset.frames=state.frame;$('viewport').dataset.errors=errors.length;$('viewport').dataset.mode=state.mode;$('viewport').dataset.render=state.renderer;$('viewport').dataset.time=renderState.time.toFixed(2);
+    statStart=now;statFrames=0;statTicks=0;
   }
   function frame(now){
     if(state.halted)return;
     try{
-      const cpuStart=performance.now(),dt=Math.min((now-lastNow)/1000,.10);lastNow=now;state.frame++;statFrames++;pollGpu();renderer.info.reset();
+      const cpuStart=performance.now(),elapsed=Math.max(0,(now-lastNow)/1000),dt=Math.min(elapsed,.10);lastNow=now;state.frame++;statFrames++;pollGpu();renderer.info.reset();
       if(state.frame%10===0)beginGpu();
-      const advanceOneStep=stepRequested;stepRequested=false;let simulationAdvance=0;
-      if(!settings.paused&&!document.hidden){state.accumulator+=dt;let steps=0;while(state.accumulator>=1/30&&steps<3){physicsStep(1/30);state.accumulator-=1/30;simulationAdvance+=1/30;steps++;}}
-      else if(settings.paused&&advanceOneStep){physicsStep(1/30);simulationAdvance=1/30;}
-      world.update(state.time,settings.paused?simulationAdvance:dt,state.actors,settings);updateCamera(Math.max(dt,1/120));draw();endGpu();submitMs=submitMs*.85+(performance.now()-cpuStart)*.15;
+      const previousTime=renderState.time;flushSimulation();
+      simulationClock.beginFrame(elapsed,{paused:settings.paused,visible:!document.hidden});
+      while(simulationClock.canStep()){
+        if(!physicsStep(simulationClock.dt))break;
+        simulationClock.consumeStep();
+      }
+      // A queued manual step survives worker startup or a still-pending solve.
+      if(settings.paused&&stepRequested&&!document.hidden&&physicsStep(simulationClock.dt))stepRequested=false;
+      state.accumulator=simulationClock.accumulator;
+      world.update(renderState.time,Math.max(0,renderState.time-previousTime),renderState.actors,settings);updateCamera(Math.max(dt,1/120));draw();endGpu();submitMs=submitMs*.85+(performance.now()-cpuStart)*.15;
       if(!state.ready){state.ready=true;$('loading').classList.add('done');setTimeout(()=>$('loading').hidden=true,700);announceReady();}
       updateStats(now);requestAnimationFrame(frame);
     }catch(e){try{endGpu();}catch(_){}fail(e);}

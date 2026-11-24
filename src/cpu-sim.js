@@ -11,6 +11,7 @@
       this.renderer=renderer;this.noiseTexture=noiseTexture;this.worldSize=options.worldSize||32;
       this.mode='cpu';this.supported=true;this.disposed=false;this.passCount=0;this.totalPassCount=0;
       this.lastStepMs=0;this.lastSolveMs=0;this.uploadBytesPerTick=0;
+      this.execution='main';this.fallbackReason='';this.pending=false;this.simulationTime=0;this.epoch=0;this.needsResync=false;this.lastRoundTripMs=0;
       this.uniforms={uWind:{value:.4}};
       this.solver=new F.CPUFluidSolver({resolution:options.resolution||128,worldSize:this.worldSize,noise:noiseTexture.image});
       // RGBA16F is filterable in WebGL2 without float render-target support.
@@ -19,6 +20,7 @@
       this._textures=[];this._allocateTextures();this.reset();
     }
     get resolution(){return this.solver.resolution;}
+    get fieldReady(){return this.supported&&!this.disposed;}
     get texture(){return this._stateTexture;}
     get velocityTexture(){return this._stateTexture;}
     get pressureTexture(){return this._pressureTexture;}
@@ -71,6 +73,7 @@
       this._pressureTexture.image.data=this.solver.pressure;
       for(const texture of [this._pressureTexture,this._curlTexture,this._divergenceTexture])texture.needsUpdate=true;
       this.lastStepMs=this.lastSolveMs=0;this.uploadBytesPerTick=0;this._lastDebug=null;
+      this.simulationTime=0;this.epoch++;
     }
     setResolution(n) {
       if(this.disposed||!this.solver.setResolution(n))return;
@@ -83,15 +86,16 @@
       this._obstacleTexture.needsUpdate=true;this._pack();
     }
     step(dt,time,interactors=[],settings={},segments=[]) {
-      if(this.disposed)return;
+      if(this.disposed)return false;
       const started=clock();
-      if(!this.solver.step(dt,time,interactors,settings,segments))return;
+      if(!this.solver.step(dt,time,interactors,settings,segments))return false;
       this.uniforms.uWind.value=this.solver.wind;this._pack();this._refreshAuxiliary(settings.debug);
       this._lastDebug=settings.debug;this.lastSolveMs=this.solver.lastStepMs;this.lastStepMs=clock()-started;
       this.uploadBytesPerTick=this._upload.byteLength+(['pressure','curl','divergence'].includes(settings.debug)?this.resolution*this.resolution*4:0);
+      this.simulationTime=Number.isFinite(time)?time:this.simulationTime+Math.min(dt,1/20);return true;
     }
     getDiagnostics() {
-      return {...this.solver.getDiagnostics(),lastStepMs:this.lastStepMs,lastSolveMs:this.lastSolveMs,
+      return {...this.solver.getDiagnostics(),execution:this.execution,pending:false,simulationTime:this.simulationTime,epoch:this.epoch,lastStepMs:this.lastStepMs,lastSolveMs:this.lastSolveMs,
         memoryBytes:this.memoryBytes,gpuMemoryBytes:this.gpuMemoryBytes,uploadBytesPerTick:this.uploadBytesPerTick,
         uploadFormat:this.uploadFormat,timingScope:'CPU solve and upload-array packing; GPU transfer time is not included.'};
     }

@@ -6,17 +6,21 @@ import { createHash } from 'node:crypto';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const read = name => readFile(resolve(root, name), 'utf8');
-const modules = ['presets.js', 'field-utils.js', 'interactions.js', 'world.js', 'sim.js', 'cpu-solver.js', 'cpu-sim.js', 'fog.js', 'app.js', 'lab-tools.js', 'learning.js'];
+const { version } = JSON.parse(await read('package.json'));
+const modules = ['presets.js', 'fixed-step.js', 'field-utils.js', 'interactions.js', 'world.js', 'sim.js', 'cpu-solver.js', 'cpu-sim.js', 'cpu-worker-sim.js', 'fog.js', 'credits.js', 'app.js', 'lab-tools.js', 'learning.js'];
+const workerModules = ['field-utils.js', 'cpu-solver.js', 'cpu-worker.js'];
+const workerSource = (await Promise.all(workerModules.map(name => read('src/' + name)))).join('\n');
 const [template, style, three, threeLicense, license, ...source] = await Promise.all([
   read('src/template.html'), read('src/style.css'), read('vendor/three.cjs'),
   read('vendor/three-LICENSE.txt'), read('LICENSE'), ...modules.map(name => read('src/' + name))
 ]);
 const inlineScript = script => script.replace(/<\/script/gi, '<\\/script');
 const sourceBlock = source.map((text, i) => `\n/* Source: src/${modules[i]} */\n${text}`).join('\n');
+const bootstrap = `window.FogLab=window.FogLab||{};\nwindow.FogLab.BuildInfo=${JSON.stringify({version,three:'r180'})};\nwindow.FogLab.cpuWorkerSource=${JSON.stringify(workerSource)};`;
 const replacements = {
   '/*__STYLE__*/': style,
   '/*__THREE__*/': inlineScript(`/* Three.js r180 · MIT\n${threeLicense}\n*/\n(function () { const exports = {};\n${three}\nwindow.THREE = exports;\n})();`),
-  '/*__APP__*/': inlineScript(`\n/* FogLab 0.2.0\n${license}\n*/\n${sourceBlock}`)
+  '/*__APP__*/': inlineScript(`\n/* FogLab ${version}\n${license}\n*/\n${bootstrap}\n${sourceBlock}`)
 };
 let html = template;
 for (const [placeholder, contents] of Object.entries(replacements)) {
@@ -37,10 +41,12 @@ await Promise.all([
   copyFile(resolve(root, 'assets/foglab-preview.png'), resolve(dist, 'assets/foglab-preview.png'))
 ]);
 const manifest = {
-  name: 'FogLab', version: '0.2.0', three: 'r180',
+  name: 'FogLab', version, three: 'r180',
   htmlBytes: Buffer.byteLength(html),
   sha256: createHash('sha256').update(html).digest('hex'),
-  modules: modules.map(name => 'src/' + name)
+  modules: modules.map(name => 'src/' + name),
+  workerModules: workerModules.map(name => 'src/' + name),
+  workerSha256: createHash('sha256').update(workerSource).digest('hex')
 };
 await writeFile(resolve(dist, 'build.json'), JSON.stringify(manifest, null, 2) + '\n');
 console.log(`Built dist/index.html and dist/FogLab.html (${manifest.htmlBytes.toLocaleString()} bytes each). All runtime assets are embedded.`);
