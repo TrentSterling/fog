@@ -1,4 +1,4 @@
-name: Mirror verified FogLab build to gh-pages
+name: Publish and verify FogLab on gh-pages
 
 on:
   push:
@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  pages: write
 
 concurrency:
   group: foglab-branch-publish
@@ -14,7 +15,9 @@ concurrency:
 
 jobs:
   publish:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Check out source and publication branch
         uses: actions/checkout@v7.0.1
@@ -30,7 +33,12 @@ jobs:
           npm test
           npm run build
           npm run check
+      - name: Confirm the existing Pages source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/pages-status.mjs --require-branch
       - name: Publish only built assets to gh-pages
+        id: mirror
         shell: bash
         run: |
           set -euo pipefail
@@ -48,3 +56,12 @@ jobs:
           else
             echo 'Published assets already match the verified build.'
           fi
+          published_sha="$(git rev-parse HEAD)"
+          remote_sha="$(git ls-remote origin refs/heads/gh-pages | cut -f1)"
+          test "$published_sha" = "$remote_sha"
+          echo "commit=$published_sha" >> "$GITHUB_OUTPUT"
+      - name: Build Pages and verify the public release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PAGES_COMMIT: ${{ steps.mirror.outputs.commit }}
+        run: node scripts/publish-pages.mjs

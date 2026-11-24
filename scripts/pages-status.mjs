@@ -1,19 +1,29 @@
-// Run only by GitHub Actions. Report the one-time Pages setup without failing
-// source validation when an owner has not enabled hosting yet.
+// Report the configured route without changing Pages settings. The artifact
+// workflow deploys only in workflow mode; the branch workflow owns gh-pages.
 import { appendFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { getPagesConfiguration, requirePublicationBranch, usesPublicationBranch } from './publish-pages.mjs';
 
-const { GITHUB_REPOSITORY: repository, GH_TOKEN: token, GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary } = process.env;
-if (!repository || !token || !output || !summary) throw new Error('This script is for the GitHub Actions workflow.');
-const response = await fetch(`https://api.github.com/repos/${repository}/pages`, {
-  headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' }
-});
-if (!response.ok && ![403, 404].includes(response.status)) throw new Error(`Pages configuration lookup failed (${response.status})`);
-const config = response.ok ? await response.json() : null;
-const enabled = config?.build_type === 'workflow';
-await appendFile(output, `enabled=${enabled}\n`);
-if (enabled) {
-  await appendFile(summary, '### FogLab build passed\n\nGitHub Pages uses GitHub Actions. Deployment will run next.\n');
-} else {
-  await appendFile(summary, `### FogLab build passed; hosting needs one-time setup\n\nThe source and offline build are ready. In [Settings → Pages](https://github.com/${repository}/settings/pages), select **GitHub Actions** as the publishing source. Then run this workflow again from the Actions tab. Future pushes to main deploy automatically.\n\nThe project inherits the account site’s custom domain. Leave the project’s custom-domain field empty.\n`);
+export function describePages({ status, config }) {
+  if (status === 403) return { enabled: false, branchEnabled: false, message: 'Build passed. This workflow token cannot read the Pages configuration (HTTP 403); hosting status is unknown.' };
+  if (status === 404) return { enabled: false, branchEnabled: false, message: 'Build passed. No accessible Pages configuration was found (HTTP 404). Review Settings → Pages; no hosting settings were changed.' };
+  if (config?.build_type === 'workflow') return { enabled: true, branchEnabled: false, message: 'Build passed. Pages uses GitHub Actions; the artifact deployment job will run next.' };
+  if (usesPublicationBranch(config)) return { enabled: false, branchEnabled: true, message: 'Build passed. Pages is configured for the gh-pages branch at /. The separate branch publication workflow requests the Pages build and verifies the live release.' };
+  return { enabled: false, branchEnabled: false, message: 'Build passed. Pages has a different publishing source. Neither this artifact job nor the gh-pages publisher changes that configuration.' };
 }
-console.log(enabled ? 'Pages is ready for deployment.' : 'Build is ready. Pages must be configured to use GitHub Actions.');
+
+async function main() {
+  const { GITHUB_REPOSITORY: repository, GH_TOKEN: token, GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary } = process.env;
+  if (!repository || !token || !output || !summary) throw new Error('This script is for the GitHub Actions workflow.');
+  const result = await getPagesConfiguration({ repository, token });
+  const status = describePages(result);
+  await appendFile(output, `enabled=${status.enabled}\nbranch_enabled=${status.branchEnabled}\n`);
+  await appendFile(summary, `### FogLab Pages configuration\n\n${status.message}\n`);
+  console.log(status.message);
+  if (process.argv.includes('--require-branch')) requirePublicationBranch(result);
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch(error => { console.error(error.message); process.exitCode = 1; });
+}

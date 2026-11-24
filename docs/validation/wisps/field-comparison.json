@@ -1,0 +1,296 @@
+{
+  "comparedCaptures": 32,
+  "comparedRawFields": 31,
+  "allFieldsIdentical": true,
+  "allCamerasIdentical": true,
+  "matches": [
+    {
+      "variant": "flat",
+      "shot": "follow",
+      "tick": 180,
+      "rawFieldApplicable": true,
+      "rawFieldIdentical": true,
+      "cameraIdentical": true,
+      "rawFieldSHA256": "6448a8f08561dacb6cbec5793ad1e87976179b2877e0086e77f1c302572515dc"
+    },
+    {
+      "variant": "flat",
+      "shot": "grazing",
+      "tick": 180,
+      "rawFieldApplicable": true,
+      "rawFieldIdentical": true,
+      "cameraIdentical": true,
+      "rawFieldSHA256": "6448a8f08561dacb6cbec5793ad1e87976179b2877e0086e77f1c302572515dc"
+    },
+    {
+      "variant": "flat",
+      "shot": "follow",
+      "tick": 900,
+      "rawFieldApplicable": true,
+      "rawFieldIdentical": true,
+      "cameraIdentical": true,
+      "rawFieldSHA256": "026373e8667c0bbd6c47b4c7e7f198eee7b7f9b46f54792161aa610517333e0f"
+    },
+    {
+      "variant": "flat",
+      "shot": "grazing",
+      "tick": 900,
+      "rawFieldApplicable": true,
+      "rawFieldIdentical": true,
+      "cameraIdentical": true,
+      "rawFieldSHA256": "026373e8667c0bbd6c47b4c7e7f198eee7b7f9b46f54792161aa610517333e0f"
+    },
+    {
+      "variant": "hills",
+      "shot": "follow",
+      "tick": 180,
+      "rawFieldApplicable": true,
+      "rawFieldIdentical": true,
+      "cameraIdentical": true,
+      "rawFieldSHA256": "6448a8f08561dacb6cbec5793ad1e87976179b2877e0086e77f1c302572515dc"
+    },
+    {
+      "variant": "hills",
+      "shot": "grazing",
+      "tick": 180,
+      "rawFieldApplicable": true,
+      "rawFieldIdentical": true,
+      "cameraIdentical": true,
+      "rawFieldSHA256": "6448a8f08561dacb6cbec5793ad1e87976179b2877e0086e77f1c302572515dc"
+    },
+    {
+      "variant": "hills",
+      "shot": "follow",
+      "tick": 900,
+      "rawFieldApplicable": true,
+      "rawFieldIdentical": true,
+      "cameraIdentical": true,
+      "rawFieldSHA256": "026373e8667c0bbd6c47b4c7e7f198eee7b7f9b46f54792161aa610517333e0f"
+    },
+    {
+      "variant": "hills",
+      "shot": "grazing",
+      "tick": 900,
+      "rawFieldApplicable": true,
+      "rawFieldIdentical": true,
+      "cameraIdentical": true,
+      "rawFieldSHA256": "026373e8667c0bbd6c47b4c7e7f198eee7b7f9b46f54792161aa610517333e0f"
+    },
+    {
+      "variant": "slash",
+      "shot": "follow",
+      "tick": 180,
+      "rawFieldApplicable": true,
+      "rawFieldIdentical": true,
+      "cameraIdentical": true,
+      "rawFieldSHA256": "60288cf1fbc2c71a28ed7d918e702f9a40c6b50e98192e949bb9aaaaa653a7fe"
+    },
+    {
+      "variant": "slash",
+      "shot": "follow",
+      "tick": 183,
+      "rawFieldApplicable": true,
+      "rawFieldIdentical": true,
+      "cameraIdentical": true,
+      "rawFieldSHA256": "e29c6f65a1d29f7f240410dd76bb1aa371eca474cdab0cf087e11191d427c300"
+    },
+    {
+      "variant": "slash",
+      "shot": "follow",
+      "tick": 186,
+      "rawFieldApplicable": true,
+      "rawFieldIdentical": true,
+      "cameraIdentical": true,
+      "rawFieldSHA256": "ca9808d0e9841d7e5e113c93bb5a5cd027d753d0d83b6c1780721f396fc7a2a5"
+    },
+    {
+      "variant": "slash",
+      "shot": "follow",
+      "tick": 189,
+      "rawFieldApplicable": true,
+      "rawFieldIdentical": true,
+      "cameraIdentical": true,
+      "rawFieldSHA256": "6d2372403f1e5e75a6e3fc77ec9c89e7c94560f94950bbc3297699e62292ce89"
+    },
+    {
+      "variant": "slash",
+      "shot": "follow",
+      "tick": 192,
+      "rawFieldApplicable": true,
+      "rawFieldIdentical": true,
+      "cameraIdentical": true,
+      "rawFieldSHA256": "75103e954be13483fa178e803fceee1b9d68fb7cf4c52d2370fc952dafcff1cc"
+    },
+    {
+      "variant": "slash",
+      "shot": "follow",
+      "tick": 195,
+      "rawFieldApplicable": true,
+      "rawFieldIdentical": true,
+      "cameraIdentical": true,
+      "rawFieldSHA256": "1412b313cecd89262cfa3901b3747dbf64d4bae66e1002935a7fdac8819b1966"
+    },
+    {
+      "variant": "slash",
+      "shot": "follow",
+      "tick": 198,
+      "rawFieldApplicable": true,
+      "rawFieldIdentical": true,
+      "cameraIdentical": true,
+      "rawFieldSHA256": "91e0e7eca8637be84244ae4ab4d668e65fd61d25e0015911d985689d41c766b6"
+    },
+    {
+      "variant": "slash",
+      "shot": "follow",
+      "tick": 201,
+      "rawFieldApplicable": true,
+      "rawFieldIdentical": true,
+      "cameraIdentical": true,
+      "rawFieldSHA256": "09e4725413b6f4275871ab1dfbc0ddb49e8775f03b6ba87c0418c3ec3a3195a1"
+    },
+    {
+      "variant": "slash",
+      "shot": "follow",
+      "tick": 204,
+      "rawFieldApplicable": true,
+      "rawFieldIdentical": true,
+      "cameraIdentical": true,
+      "rawFieldSHA256": "eff6584e4d1a7d5e0ea3ed5292d7d6cb942d5c6f94dae71f956d0e1418232e8e"
+    },
+    {
+      "variant": "slash",
+      "shot": "follow",
+      "tick": 207,
+      "rawFieldApplicable": true,
+      "rawFieldIdentical": true,
+      "cameraIdentical": true,
+      "rawFieldSHA256": "97cdbc4acd33f116a06f7e4b6d1d90051a1a76767bad6b18e018111c31c8fe4e"
+    },
+    {
+      "variant": "slash",
+      "shot": "follow",
+      "tick": 210,
+      "rawFieldApplicable": true,
+      "rawFieldIdentical": true,
+      "cameraIdentical": true,
+      "rawFieldSHA256": "6f356556a21fe5ee88a7a9fc0f511b8288530a9fce900eefeafe318d30b1069b"
+    },
+    {
+      "variant": "slash",
+      "shot": "follow",
+      "tick": 213,
+      "rawFieldApplicable": true,
+      "rawFieldIdentical": true,
+      "cameraIdentical": true,
+      "rawFieldSHA256": "1835c37a4c2b742d35bee2776aa122b781ab3032bb599fb6e4608e044990e671"
+    },
+    {
+      "variant": "slash",
+      "shot": "follow",
+      "tick": 216,
+      "rawFieldApplicable": true,
+      "rawFieldIdentical": true,
+      "cameraIdentical": true,
+      "rawFieldSHA256": "e6df342c2db154357e5431baa7bbf4e234c212ad6a12e1864650cce405a0e2ac"
+    },
+    {
+      "variant": "slash",
+      "shot": "follow",
+      "tick": 219,
+      "rawFieldApplicable": true,
+      "rawFieldIdentical": true,
+      "cameraIdentical": true,
+      "rawFieldSHA256": "3f43c43d615857a32d18721aa39cea306a1200c7abeb98bf64834331f655bc88"
+    },
+    {
+      "variant": "slash",
+      "shot": "follow",
+      "tick": 222,
+      "rawFieldApplicable": true,
+      "rawFieldIdentical": true,
+      "cameraIdentical": true,
+      "rawFieldSHA256": "972743602dca78a89fe9092bfbc1afe064c75fc6789d398a4b6ba388b34d5423"
+    },
+    {
+      "variant": "slash",
+      "shot": "follow",
+      "tick": 225,
+      "rawFieldApplicable": true,
+      "rawFieldIdentical": true,
+      "cameraIdentical": true,
+      "rawFieldSHA256": "94028567aa3c8f2c9c56382f6c627137284143ed8bc436bb492ad9dfa570bf41"
+    },
+    {
+      "variant": "slash",
+      "shot": "follow",
+      "tick": 228,
+      "rawFieldApplicable": true,
+      "rawFieldIdentical": true,
+      "cameraIdentical": true,
+      "rawFieldSHA256": "2abc7504da3780595bc6434c8b6d8187a2f4079f960ced33a050ad9a9c4aa896"
+    },
+    {
+      "variant": "slash",
+      "shot": "follow",
+      "tick": 231,
+      "rawFieldApplicable": true,
+      "rawFieldIdentical": true,
+      "cameraIdentical": true,
+      "rawFieldSHA256": "3462c7e314b59c83b86ac06d2917916b20eb1df05678a918f05127c48f7c6f13"
+    },
+    {
+      "variant": "slash",
+      "shot": "follow",
+      "tick": 234,
+      "rawFieldApplicable": true,
+      "rawFieldIdentical": true,
+      "cameraIdentical": true,
+      "rawFieldSHA256": "971d48b8914d073013726ea8eab36427d0bd753df602925df68fbd2bc08877b3"
+    },
+    {
+      "variant": "slash",
+      "shot": "follow",
+      "tick": 237,
+      "rawFieldApplicable": true,
+      "rawFieldIdentical": true,
+      "cameraIdentical": true,
+      "rawFieldSHA256": "878050c12e6a6b843f5e3c0eeecba91c7c3fa7708b7f8348d613aa4018c69b3f"
+    },
+    {
+      "variant": "slash",
+      "shot": "follow",
+      "tick": 240,
+      "rawFieldApplicable": true,
+      "rawFieldIdentical": true,
+      "cameraIdentical": true,
+      "rawFieldSHA256": "d844e5285f79acbd99512bb1abdeb6ef5fac88b7affa5a11f17f57c8bc73a251"
+    },
+    {
+      "variant": "cpu-main",
+      "shot": "follow",
+      "tick": 180,
+      "rawFieldApplicable": true,
+      "rawFieldIdentical": true,
+      "cameraIdentical": true,
+      "rawFieldSHA256": "ad4ea99b2558f6e3ccb5ae828293522d5c2ead6fa210c78c22bcbecc55ec3b98"
+    },
+    {
+      "variant": "analytical-mesh",
+      "shot": "follow",
+      "tick": 180,
+      "rawFieldApplicable": false,
+      "rawFieldIdentical": true,
+      "cameraIdentical": true,
+      "rawFieldSHA256": null
+    },
+    {
+      "variant": "hybrid-layered",
+      "shot": "follow",
+      "tick": 180,
+      "rawFieldApplicable": true,
+      "rawFieldIdentical": true,
+      "cameraIdentical": true,
+      "rawFieldSHA256": "f5eee4f658c381d1e8fd181140cc26272383a6799cc1456fb2b230cf65b1abff"
+    }
+  ]
+}

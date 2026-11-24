@@ -1,0 +1,20 @@
+[
+  {
+    "variant": "low-grazing",
+    "shot": "grazing",
+    "fieldIdentical": true,
+    "cameraIdentical": true
+  },
+  {
+    "variant": "columns",
+    "shot": "follow",
+    "fieldIdentical": true,
+    "cameraIdentical": true
+  },
+  {
+    "variant": "columns",
+    "shot": "grazing",
+    "fieldIdentical": true,
+    "cameraIdentical": true
+  }
+]

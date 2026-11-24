@@ -132,6 +132,6 @@ Shader export produces the original GLSL blocks, not a ready-made Unity package.
 
 ## Publishing
 
-The project is published at `https://tront.xyz/fog/`. The [branch publishing workflow](.github/workflows/gh-pages-branch.yml) runs the tests, builds the self-contained files, checks packaging, and commits the generated assets to `gh-pages`. GitHub Pages publishes that branch's root. Source stays on `main`; generated hosting files stay on `gh-pages`.
+The project is published at `https://tront.xyz/fog/`. The [branch publishing workflow](.github/workflows/gh-pages-branch.yml) runs the tests, builds the self-contained files, checks packaging, and commits the generated assets to `gh-pages`. The workflow explicitly requests or confirms publication of that branch's root, then verifies the live manifest and both HTML hashes before reporting success. Source stays on `main`; generated hosting files stay on `gh-pages`.
 
 A source push is only the first step. Check both the publishing workflow and GitHub's Pages deployment, then inspect the served [build.json](https://tront.xyz/fog/build.json) version and HTML hash. The older direct-Actions workflow remains available; it only deploys when the repository is explicitly configured for that source. It is not the active branch-publishing route.

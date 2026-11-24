@@ -45,6 +45,18 @@ node scripts/visual/capture.cjs --source /tmp/foglab-review/candidates/filtered-
 
 The optional renderer requires the native dependencies described in [scripts/visual/README.md](../../../scripts/visual/README.md). The application build itself still needs only Node and the vendored engine.
 
-## Work remaining at this checkpoint
+## Final rendering validation
 
-The selected source passes all 50 Node tests, the self-contained build, packaging checks, and independent code review. Expanded motion, 30-second fields, quality extremes, alternate renderers, and publishing verification are underway. The final release validation will replace this checkpoint status with measured results.
+The selected source passes all 50 application tests, the self-contained build, packaging checks, and independent code review. The expanded native rendering run passed **99 captures**: 95 at 960×540 and four at 1280×720. All captured shaders compiled, frames were nonblank, GL checks were clean, and simulated fields were finite.
+
+Across the 32 original baseline scenarios, all 31 non-null raw fields and all 32 camera configurations match exactly. The 61-frame slash sequence and 16-frame steady-camera phase-boundary sequence each use consecutive ticks at 30 frames per second. The measured phase-wrap change is comparable to ordinary adjacent frames, with no large reset spike in that sample.
+
+Low 20-step quality and the column profile retain horizontal ray strata at shallow angles. Matched old-source renders show this limitation already existed. The high 48-step preset is cleaner. This release improves the visual structure; it does not eliminate every sampling artifact or establish a mobile/VR frame-rate target.
+
+[Full validation and limits](final-validation.md) · [Summary](final-summary.json) · [Field comparisons](field-comparison.json) · [Exact hero matches](hero-equivalence.json) · [Losslessly packaged rendering evidence](media/)
+
+![The same field after 30 seconds, before and after the renderer change](media/long-run-comparison.webp)
+
+[All fourteen candidates](media/candidate-overview.webp) · [Original and selected hero](media/comparison.webp) · [Slash sequence at 30 FPS](media/slash-30fps.mp4)
+
+Publication is a separate gate. The branch workflow checks the configured source, confirms the exact Pages commit, then requires the publicly served manifest and both HTML files to match the verified local build hash. Its GitHub Actions summary records the observed publication result.

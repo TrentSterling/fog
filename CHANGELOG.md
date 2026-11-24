@@ -9,7 +9,7 @@
 - Added Wisp detail to the main Rendering controls and validated preset/share-link codec. Zero selects the earlier smooth density modulation.
 - Skipped fine-density and light work for empty/above-bank volume samples. Default simulation resolution, ray sample count, fog render scale, and render-target allocation are unchanged.
 - Preserved deterministic render, image anonymization, motion capture, candidate recipes, and independent critique records in the repository. Native GLES validation is explicitly distinguished from browser and hardware performance testing.
-- Updated the documented Pages publishing route to the working gh-pages branch workflow.
+- Updated the documented gh-pages publishing route and added an explicit Pages-build/public-content verification gate. A mirrored branch is no longer the only success condition.
 
 The initial softness predates 0.3; it was not introduced by moving CPU simulation into a worker. See the [source audit](docs/validation/wisp-source-audit.md) and [visual review](docs/validation/wisps/README.md).
 

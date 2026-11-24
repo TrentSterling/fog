@@ -1,0 +1,176 @@
+{
+  "provenance": "Actual production Three.js modules and fog shaders rendered through a native Mesa GLES software context. These are not browser screenshots, generated illustrations, or hardware performance benchmarks. CPU captures use the synchronous CPU adapter.",
+  "source": "github:TrentSterling/fog@7dd935143cdd928f23c26b2d6332087f328640e9",
+  "sourceCommit": "7dd935143cdd928f23c26b2d6332087f328640e9",
+  "allCapturedModulesMatchPinnedCommit": true,
+  "captures": 99,
+  "captureSizes": [
+    {
+      "width": 960,
+      "height": 540,
+      "count": 95
+    },
+    {
+      "width": 1280,
+      "height": 720,
+      "count": 4
+    }
+  ],
+  "allFinite": true,
+  "shaderOrGLErrors": 0,
+  "allCapturesNonblank": true,
+  "comparedBaselineCaptures": 32,
+  "comparedNonNullRawFields": 31,
+  "allBaselineFieldsIdentical": true,
+  "allBaselineCamerasIdentical": true,
+  "additionalQualityControlCaptures": 3,
+  "allAdditionalQualityFieldsAndCamerasIdentical": true,
+  "heroEquivalence": {
+    "pngComparisons": 4,
+    "allByteIdentical": true,
+    "losslessWebPConversions": 4,
+    "allDecodedPixelsMatchSourcePNG": true
+  },
+  "phaseBoundary": {
+    "fromTick": 352,
+    "toTick": 353,
+    "meanAbsoluteRGBChange": 0.03210795120517343,
+    "maxAbsoluteChannelChange": 3,
+    "boundaryVsAdjacentMedian": 1.0152782618798653,
+    "scope": "8-bit RGB fog region below the top 30% sky; fixed camera; 16 consecutive ticks"
+  },
+  "uniqueVisuallyReviewedCandidates": 14,
+  "visualReview": {
+    "inspected": "Full-resolution hero, grazing, low/high quality and terrain/profile frames; labelled stress, slash and phase contact sheets.",
+    "appearance": "Frayed foreground fringes and secondary breakup appear while broad banks, clearings, character readability, and exposed hill crests remain intact.",
+    "remainingLimitation": "Horizontal ray-step strata remain visible at shallow angles, especially low20-step quality and column density. Matched old-source controls show the limitation already exists in v0.3. No claim that all banding is eliminated.",
+    "qualityControlFieldsIdentical": true
+  },
+  "limitations": [
+    "Native Mesa GLES captures, not browser screenshots or device GPU benchmarks.",
+    "Locked camera omits frame-rate-dependent follow smoothing; CPU uses the synchronous production adapter.",
+    "Low-step grazing and column views retain pre-existing horizontal ray strata.",
+    "Packaged overview sheets use resized thumbnails; four full-size hero WebPs preserve exact decoded PNG pixels."
+  ],
+  "media": [
+    {
+      "file": "docs/validation/wisps/media/before-follow.webp",
+      "bytes": 434932,
+      "sha256": "3032b70d81f50b904385ba4d27dcb056d2e1da449278553dee9ffccca819c07c",
+      "width": 1280,
+      "height": 720,
+      "encoding": "lossless WebP",
+      "sourcePNG": "rollback-follow-00180.png",
+      "sourcePNGSHA256": "9862b5aa43881e688e8ed30d71bae90316aab295b56a05f461423e614bfbc6df",
+      "decodedPixelSHA256": "132ca91a34a2c6f032e537f9ee889606dc6aae6e9a0f757cd3f605bc3b9a92a5",
+      "decodedPixelsMatchSourcePNG": true
+    },
+    {
+      "file": "docs/validation/wisps/media/before-grazing.webp",
+      "bytes": 318424,
+      "sha256": "39e2f0e411f40e3173bb29c42f22652c2ca0bdf9c364f22df0b137eb2e038117",
+      "width": 1280,
+      "height": 720,
+      "encoding": "lossless WebP",
+      "sourcePNG": "rollback-grazing-00180.png",
+      "sourcePNGSHA256": "792e75147897c75b029cc03be1866931b536c9bbba7f98f31cc06f7fbeb01d95",
+      "decodedPixelSHA256": "f4325538f3bdf7815727aab39d204ab87d8eef8a35827920c0a2cab806b6389e",
+      "decodedPixelsMatchSourcePNG": true
+    },
+    {
+      "file": "docs/validation/wisps/media/after-follow.webp",
+      "bytes": 468880,
+      "sha256": "e9e90a7db1c54a12b486f039406d78719478fc4485541685055abc2206be0941",
+      "width": 1280,
+      "height": 720,
+      "encoding": "lossless WebP",
+      "sourcePNG": "hero-follow-00180.png",
+      "sourcePNGSHA256": "a1171a1105966fc0e1076cfd3fed8b8c7f36f8bda133a93b757635f6dc74532c",
+      "decodedPixelSHA256": "e6876b0bce6b65855aeaf9773964feadd5d0d1d3fb9205b02157a2fab96a5371",
+      "decodedPixelsMatchSourcePNG": true
+    },
+    {
+      "file": "docs/validation/wisps/media/after-grazing.webp",
+      "bytes": 352440,
+      "sha256": "0d1453e31d0a18375cf2638c3a271fabed0cc36f575caf5d40061389ee3adae1",
+      "width": 1280,
+      "height": 720,
+      "encoding": "lossless WebP",
+      "sourcePNG": "hero-grazing-00180.png",
+      "sourcePNGSHA256": "800fb6bca2b97fdd24191499ac30ef38d6ea0b22885d805079b3e8f17e1aeb51",
+      "decodedPixelSHA256": "fb51ede2bd9424fa9af2f5c722e089bf9b78182bee66d9878db55f33344440db",
+      "decodedPixelsMatchSourcePNG": true
+    },
+    {
+      "file": "docs/validation/wisps/media/comparison.webp",
+      "bytes": 629002,
+      "sha256": "dd47c15f6c5c33d2dd2c6571cc76031bb21cf0040297ec964a647bdb70a0b815",
+      "width": 960,
+      "height": 1128,
+      "encoding": "lossless WebP",
+      "processing": "Resize only before WebP encoding; no enhancement"
+    },
+    {
+      "file": "docs/validation/wisps/media/quality-sheet.webp",
+      "bytes": 561018,
+      "sha256": "39e9c98b4b86e725be915ebd0a255a290f8cad63796d85f0f6fd362c68c646ef",
+      "width": 1440,
+      "height": 906,
+      "encoding": "lossless WebP",
+      "processing": "Resize only before WebP encoding; no enhancement"
+    },
+    {
+      "file": "docs/validation/wisps/media/long-run-comparison.webp",
+      "bytes": 265460,
+      "sha256": "f30320b760750085996ca9f4344f61719b04e95c81c784725333e123602edd71",
+      "width": 1280,
+      "height": 394,
+      "encoding": "lossless WebP",
+      "processing": "Before/after tick-900 captures resized to 640×360 and labelled; no enhancement"
+    },
+    {
+      "file": "docs/validation/wisps/media/candidate-overview.webp",
+      "bytes": 190826,
+      "sha256": "49467690cebb40bd3b8dc5de0f5a7dbf899cbf32d86243baf86fff66425bc78f",
+      "width": 1440,
+      "height": 1520,
+      "encoding": "WebP quality 92",
+      "processing": "480×270 thumbnails from rendered follow-camera captures; labels added after blind review"
+    },
+    {
+      "file": "docs/validation/wisps/media/slash-30fps.mp4",
+      "bytes": 274227,
+      "sha256": "2df6fbf9787ace2f315bcd575a7c3d148449994a5b5e9e688e59189c91ce88aa",
+      "encoding": "H.264 MP4",
+      "framesPerSecond": 30,
+      "frames": 61,
+      "sourceBytesUnchanged": true
+    },
+    {
+      "file": "docs/validation/wisps/media/phase-boundary-30fps.mp4",
+      "bytes": 37100,
+      "sha256": "bf0ea23ea0b29702c65c34e638cfe8ce590979f3eed77de6d7908b3ba86bcfe9",
+      "encoding": "H.264 MP4",
+      "framesPerSecond": 30,
+      "frames": 16,
+      "sourceBytesUnchanged": true
+    },
+    {
+      "file": "assets/foglab-preview.png",
+      "bytes": 459297,
+      "sha256": "8181054433d6b7e4ea40cc7caea9793623e75b6e60a93e70a481ce74711319a8",
+      "width": 960,
+      "height": 540,
+      "encoding": "PNG",
+      "processing": "Selected hero resized to 960×540; no enhancement"
+    },
+    {
+      "file": "docs/validation/wisps/full-manifest.json.gz",
+      "bytes": 26989,
+      "sha256": "49576c4d3d5024606cdd3d016dbfd7f1548b652d3da2d88b3d367881f7d17267",
+      "encoding": "deterministic gzip",
+      "uncompressedBytes": 420206,
+      "uncompressedSHA256": "2a0ec72b866e7a9007c817f1acde462391657be1ec36453bade7107207c0d69c"
+    }
+  ]
+}
