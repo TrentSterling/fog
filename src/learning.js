@@ -102,7 +102,7 @@
       swirl: 0.8, persistence: 5.2, wind: 0.32, pressure: 18, vorticity: 0.38,
       terrain: 'flat', lighting: 'reference', environment: 'reference',
       paused: false, debug: 'beauty', wireframe: false, meshLayers: 1
-      ,obstacles:true,obstacleCourse:false,wakeStyle:'paired',densityProfile:'billows',heightMode:'world',detailStrength:1,heightShear:1,lightingModel:'directional'
+      ,obstacles:true,obstacleCourse:false,wakeStyle:'paired',densityProfile:'billows',heightMode:'world',detailStrength:1,heightShear:1,wispStrength:1,lightingModel:'directional'
     });
     Object.assign(preset.view, {
       mode: 'fluid', renderer: 'mesh', layout: 'single',

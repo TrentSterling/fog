@@ -25,7 +25,7 @@
   const COMMON = `
     uniform sampler2D uNoise, uField, uDepth, uAux, uObstacle;
     uniform float uTime,uHeight,uDensity,uRadius,uStrength,uSwirl,uPersistence,uWind;
-    uniform float uNear,uFar,uContribution,uDetailStrength,uHeightShear;
+    uniform float uNear,uFar,uContribution,uDetailStrength,uHeightShear,uWispStrength;
     uniform int uMode,uTrailCount,uDebug,uDensityProfile,uHeightMode,uLightingModel,uObstacles,uWakeStyle;
     uniform vec2 uResolution;
     uniform vec4 uSurfaceRelief;
@@ -116,6 +116,33 @@
       return clamp((medium-0.5)*1.65+0.5,0.0,1.0);
     }
     float detailDensity(float n){return 1.0+(n-0.5)*0.64*uDetailStrength;}
+
+    // Two independently offset atlas slices interpolate a shallow 3D band.
+    // A flat pattern sheared through height produces density curtains instead.
+    float wispNoise(vec2 p,vec4 field,float worldY,float lod){
+      vec2 drift=vec2(0.35,0.13)*uWind*uTime*0.07;
+      vec2 curl=(texture2D(uNoise,p*0.085+drift*0.03).ba*2.0-1.0);
+      vec2 q=(p+drift+curl*0.55+clamp(field.xy,vec2(-5.0),vec2(5.0))*0.16)*0.27;
+      float vertical=uDensityProfile==0?(worldY*4.0+dot(curl,vec2(0.65,0.35)))*uHeightShear:0.0;
+      float slice=floor(vertical),blend=fract(vertical);
+      blend=blend*blend*(3.0-2.0*blend);
+      vec2 stride=vec2(0.317,0.613);
+      float a=textureLod(uNoise,q+slice*stride+vec2(0.23,0.67),lod).g;
+      float b=textureLod(uNoise,q+(slice+1.0)*stride+vec2(0.23,0.67),lod).g;
+      return clamp((mix(a,b,blend)-0.5)*1.85+0.5,0.0,1.0);
+    }
+    float densityDetail(vec2 p,vec4 field,float level,float n,float worldY,float footprint){
+      if(uDetailStrength<=0.0)return 1.0;
+      if(uWispStrength<=0.0)return detailDensity(n);
+      // Filter the atlas over the distance between ray samples as well as
+      // pixel coverage. A screen-only mip choice leaves grazing rays striped.
+      float lod=max(0.0,log2(max(1.0,footprint*0.27*256.0*0.65)));
+      float fine=wispNoise(p,field,worldY,lod);
+      float fold=mix(n,fine,0.62);
+      float edge=max(smoothstep(0.12,0.80,level),1.0-smoothstep(0.18,0.90,field.b));
+      float erosion=0.10+1.55*smoothstep(0.26,0.72,fold);
+      return detailDensity(n)*mix(1.0,erosion,clamp((0.35+0.60*edge)*uDetailStrength*uWispStrength,0.0,1.0));
+    }
     float fogTop(vec2 p,vec4 field){
       // World mode lets hills break through the upper envelope. Terrain mode
       // translates the same local shape by the height of the ground beneath it.
@@ -219,7 +246,7 @@
       float silhouette=smoothstep(0.0,0.35,abs(dot(fogNormal,viewDir)));
       float path=min(vThickness/max(abs(viewDir.y),0.24),3.4);
       float n=cloudNoise(vWarp,vField,vLevel);
-      float concentration=max(0.0,vField.b)*detailDensity(n);
+      float concentration=max(0.0,vField.b)*densityDetail(vWarp,vField,vLevel,n,vWorld.y,max(length(dFdx(vWorld)),length(dFdy(vWorld))));
       float extinction=concentration*uDensity*1.05*fieldEdge(vWorld.xz)*uContribution*silhouette;
       float alpha=(1.0-exp(-extinction*path))*soft;
       vec3 col=fogLight(n,vLevel);
@@ -290,6 +317,9 @@
         if(p.y>ground){
           vec4 f=sampleField(p.xz);
           float top=fogTop(p.xz,f);
+          // Empty cells and samples above the bank add no scattering.
+          // Skip fine density and lighting work for those samples.
+          if(f.b>0.0&&p.y<top){
           float height=max(0.02,top-ground);
           float h=(p.y-ground)/height;
           float n=cloudNoise(p.xz,f,h);
@@ -297,7 +327,7 @@
           // constant-density body and a soft cap. Billows retains its old fade.
           float capStart=uDensityProfile==1?0.75:0.48;
           float vertical=smoothstep(0.0,0.09,p.y-ground)*(1.0-smoothstep(capStart,1.0,h))*step(ground+0.01,top);
-          float rho=max(0.0,f.b)*detailDensity(n)*vertical*uDensity*1.65*fieldEdge(p.xz)*uContribution;
+          float rho=max(0.0,f.b)*densityDetail(p.xz,f,h,n,p.y,dt)*vertical*uDensity*1.65*fieldEdge(p.xz)*uContribution;
           float a=1.0-exp(-rho*dt);
           vec3 color=fogLight(n,clamp(h,0.0,1.0));
           if(uLightingModel==0){
@@ -317,6 +347,7 @@
             color=mix(vec3(0.015,0.11,0.10),vec3(0.33,1.0,0.74),line);
           }
           accum+=trans*a*color;trans*=1.0-a;
+          }
         }
         t+=dt;
         if(trans<0.018)break;
@@ -413,7 +444,7 @@
         uTime:{value:0},uHeight:{value:1.35},uDensity:{value:0.95},uRadius:{value:1.15},uStrength:{value:1},
         uSwirl:{value:0.8},uPersistence:{value:5},uWind:{value:0.4},uNear:{value:0.1},uFar:{value:100},
         uContribution:{value:1},uTerrain:{value:1},uMode:{value:0},uTrailCount:{value:0},uDebug:{value:0},
-        uDensityProfile:{value:0},uHeightMode:{value:0},uDetailStrength:{value:1},uHeightShear:{value:1},uLightingModel:{value:0},uObstacles:{value:0},uWakeStyle:{value:0},
+        uDensityProfile:{value:0},uHeightMode:{value:0},uDetailStrength:{value:1},uHeightShear:{value:1},uWispStrength:{value:1},uLightingModel:{value:0},uObstacles:{value:0},uWakeStyle:{value:0},
         uResolution:{value:new THREE.Vector2(1,1)},uSurfaceRelief:{value:new THREE.Vector4(0.22,0.30,0.44,0.58)},uCamPos:{value:new THREE.Vector3()},
         uTint:{value:new THREE.Color(0.40,0.405,0.375)},
         uTrails:{value:Array.from({length:24},()=>new THREE.Vector4(1000,1000,100,0))},
@@ -471,6 +502,7 @@
       u.uDensityProfile.value=s.densityProfile==='column'?1:0;u.uHeightMode.value=s.heightMode==='terrain'?1:0;
       u.uDetailStrength.value=Math.max(0,Math.min(1.5,s.detailStrength??1));
       u.uHeightShear.value=Math.max(0,Math.min(1.5,s.heightShear??1));
+      u.uWispStrength.value=Math.max(0,Math.min(1.5,s.wispStrength??1));
       u.uLightingModel.value=s.lightingModel==='ambient'?1:0;
       u.uWakeStyle.value=s.wakeStyle==='radial'?1:s.wakeStyle==='tangential'?2:0;
       u.uObstacle.value=args.obstacleTexture||this.emptyObstacle;u.uObstacles.value=s.obstacles&&args.obstacleTexture?1:0;

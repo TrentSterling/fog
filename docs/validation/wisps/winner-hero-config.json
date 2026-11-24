@@ -1,0 +1,34 @@
+{
+  "width": 1280,
+  "height": 720,
+  "defaults": {
+    "mode": "fluid",
+    "render": "raymarch",
+    "ticks": [
+      180
+    ],
+    "shots": [
+      {
+        "id": "follow"
+      },
+      {
+        "id": "grazing",
+        "camera": {
+          "phi": 1.36,
+          "distance": 13
+        }
+      }
+    ]
+  },
+  "variants": [
+    {
+      "id": "rollback",
+      "settings": {
+        "wispStrength": 0
+      }
+    },
+    {
+      "id": "hero"
+    }
+  ]
+}

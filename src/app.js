@@ -40,7 +40,7 @@
     get fog(){return fog;},get camera(){return camera;},get sceneRT(){return sceneRT;},
     get ready(){return initializationComplete;},get renderReady(){return canRender()&&state.ready;},
     get simulationSupported(){return simulationSupported;},
-    get runtime(){return {version:F.BuildInfo?.version||'0.3.0',submittedTime:state.time,renderTime:renderState.time,committedTicks,pending:!!pendingTick,simulationHz:lastSimulationHz,droppedSeconds:simulationClock.droppedSeconds,cpuExecution:sims?.cpu?.execution||null};},
+    get runtime(){return {version:F.BuildInfo?.version||'0.4.0',submittedTime:state.time,renderTime:renderState.time,committedTicks,pending:!!pendingTick,simulationHz:lastSimulationHz,droppedSeconds:simulationClock.droppedSeconds,cpuExecution:sims?.cpu?.execution||null};},
     snapshotPreset,applyPreset,showToast:toast,copyShareLink,getShareURL:()=>P.buildShareURL(snapshotPreset(),location.href),
     setMode,setLayout,setRenderMode,setQuality,reset,pulse,jump,slash,physicsStep,draw,
     diagnostics:()=>canRender()?{available:true,hybrid:sims.hybrid.getDiagnostics(),fluid:sims.fluid.getDiagnostics(),cpu:sims.cpu?.getDiagnostics()||null,errors:[...errors]}:
@@ -137,6 +137,7 @@
     ['slidersAdvanced','wind','Ambient wind',0,2,.05,v=>v.toFixed(2)],['slidersAdvanced','pressure','Pressure iterations',2,32,1,v=>v.toFixed(0)],
     ['slidersAdvanced','vorticity','Vorticity confinement',0,1.8,.05,v=>v.toFixed(2)],['slidersAdvanced','raySteps','Ray samples',8,48,2,v=>v.toFixed(0)],
     ['slidersAdvanced','renderScale','Fog render scale',.3,1,.05,v=>Math.round(v*100)+'%'],
+    ['slidersMain','wispStrength','Wisp detail',0,1.5,.05,v=>v.toFixed(2)],
     ['slidersShape','detailStrength','Billow detail',0,1.5,.05,v=>v.toFixed(2)],
     ['slidersShape','heightShear','Vertical shear',0,1.5,.05,v=>v.toFixed(2)]
   ];

@@ -1,0 +1,36 @@
+{
+  "seed": "third-462713",
+  "provenance": "Unmodified rendered images, anonymously shuffled for review; overview thumbnails resize without enhancement.",
+  "images": [
+    {
+      "variant": "filtered-warped",
+      "shot": "follow",
+      "label": "A",
+      "sha256": "a1171a1105966fc0e1076cfd3fed8b8c7f36f8bda133a93b757635f6dc74532c"
+    },
+    {
+      "variant": "physical",
+      "shot": "follow",
+      "label": "B",
+      "sha256": "6f4ac8bfc7dfe9dc30bdb8cfc7f1660fd73497da3a48fccf85313ff3384c1a40"
+    },
+    {
+      "variant": "filtered",
+      "shot": "follow",
+      "label": "C",
+      "sha256": "8165002ba7cb722c6bb3e3b7552fe1406ad9623401933a61bcdccb690cadba9a"
+    },
+    {
+      "variant": "control",
+      "shot": "follow",
+      "label": "D",
+      "sha256": "9862b5aa43881e688e8ed30d71bae90316aab295b56a05f461423e614bfbc6df"
+    },
+    {
+      "variant": "filtered-soft",
+      "shot": "follow",
+      "label": "E",
+      "sha256": "f886dcd9a61c8c14046588586229b48a48f54063b63459a7320899eca22efa6d"
+    }
+  ]
+}

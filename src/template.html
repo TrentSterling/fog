@@ -42,7 +42,7 @@
  <main>
   <section id="stage" aria-label="Interactive 3D fog playground">
    <canvas id="viewport" tabindex="0" aria-label="Fog simulation. WASD moves, Shift sprints, Space jumps, X slashes, F pulses, drag orbits, right drag stirs."></canvas>
-   <div id="scene-heading"><div class="eyebrow">FOGLAB 0.3 / INTERACTIVE FLOW</div><h1>Ground fog study</h1><p>Walk, slash, land. Compare how the fog responds.</p></div>
+   <div id="scene-heading"><div class="eyebrow">FOGLAB 0.4 / INTERACTIVE FLOW</div><h1>Ground fog study</h1><p>Walk, slash, land. Compare how the fog responds.</p></div>
    <div class="view-tools"><div id="layoutControls" class="segments"><button data-layout="single" class="active">Solo</button><button data-layout="compare">A / B</button><button data-layout="triple" title="Analytical, Hybrid, and GPU fluids">All three</button></div><button id="cameraButton" class="small-button" title="Cycle camera (C)">Follow cam</button></div>
    <div id="paneLabels"></div>
    <div id="loading"><div class="loader-mark">FOG<span>LAB</span></div><div class="loading-bar"><span></span></div><p>Preparing the fog field…</p></div>
@@ -78,6 +78,7 @@
      <p id="renderDescription" class="hint">Integrate transported density below a shared fog ceiling, clipped by the terrain.</p>
      <label id="compareRendererRow" class="inline-label" hidden>Comparison renderer<select id="compareRenderer"><option value="same">Match left</option><option value="mesh">Mesh</option><option value="raymarch">Raymarch</option><option value="layered">Layered</option></select></label>
      <div id="slidersMain"></div>
+     <p class="hint">Wisp detail reveals finer folds. Set it to zero for the smoother look.</p>
      <div class="two-controls"><label>Density shape<select id="densityProfile"><option value="billows">Layered billows</option><option value="column">Simple columns</option></select></label><label>Height reference<select id="heightMode"><option value="world">World ceiling</option><option value="terrain">Follow terrain</option></select></label></div>
      <p id="heightHint" class="hint">A shared world ceiling lets hilltops emerge.</p>
     </section>

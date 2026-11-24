@@ -2,7 +2,7 @@
 
 FogLab separates two questions: **what moves the fog, and how do we draw it?** A pressure solver does not require raymarching. A raymarcher does not require a pressure solver. Keeping those decisions separate is the point of the demo.
 
-This guide describes release **0.3.0**, particularly [sim.js](../src/sim.js), [fog.js](../src/fog.js), [cpu-worker-sim.js](../src/cpu-worker-sim.js), and [app.js](../src/app.js). The implementation is a visual approximation inspired by the [reference video](https://www.youtube.com/watch?v=Sm8x4lOGOYE), not a claim about Nintendo's engine. The 0.3 upgrade changes CPU execution and update scheduling while preserving the fog shaders and established visual controls.
+This guide describes release **0.4.0**, particularly [sim.js](../src/sim.js), [fog.js](../src/fog.js), [cpu-worker-sim.js](../src/cpu-worker-sim.js), and [app.js](../src/app.js). The implementation is a visual approximation inspired by the [reference video](https://www.youtube.com/watch?v=Sm8x4lOGOYE), not a claim about Nintendo's engine. The 0.4 upgrade adds filtered height-varying wisp detail to the renderer. The fluid state and the 0.3 worker/scheduling behavior remain the same.
 
 ## Start with controlled comparisons
 
@@ -133,6 +133,15 @@ For the sheet, `L` comes from an approximate thickness/view-angle calculation wi
 
 Layered billows preserve the existing height-varying noise. Simple columns keep one horizontal pattern throughout the height with a soft upper falloff. These choices work with every renderer. Billow detail scales medium erosion and surface relief; it does not remove the broad transported concentration pattern. Vertical shear changes height-dependent noise coordinates and is inactive for columns.
 
+Wisp detail is a separate renderer control. The existing G atlas is sampled at two independently offset height slices and smoothly interpolated. Curl warps the horizontal coordinates and slice alignment; physical world height sets the vertical frequency. This avoids stretching one 2D pattern into straight curtains and avoids compressing a fixed pattern into every thin bank. The fine field is an artistic reconstruction warped by local velocity, not another advected fluid grid.
+
+The fine pattern primarily erodes upper and sparse regions; transported concentration still determines where fog exists. Broad contours, the medium-scale bank recipe, and directional illumination stay separate. Noise does not directly brighten every concentration peak. Columns intentionally keep a constant pattern through height; billows vary vertically.
+
+For volume rendering, the fine atlas mip level accounts for distance between ray samples. Mesh rendering uses screen-pixel world coverage. This filtering reduces undersampling at grazing angles without increasing the default ray count. Empty samples and positions above the local bank skip fine density and lighting. At a nonzero Wisp detail setting, each occupied sample still adds three atlas lookups; this is not a free rendering change or a hardware performance claim.
+
+Set Wisp detail to zero to use the earlier density modulation. The control changes neither the field nor simulation time, so it can be compared while paused. Billow detail still controls the medium contour and overall detail strength; setting it to zero removes both levels of density detail.
+
+
 Directional lighting uses the existing nearby density sample to darken deeper material. Ambient only skips that extra raymarch density/detail lookup; mesh silhouette normals are still required. Neither setting adds a fluid update pass. Precomputed light fields and MacCormack advection are not part of this release.
 
 ## Count the work honestly
@@ -181,7 +190,7 @@ For a useful comparison, keep the camera, scene, settings, browser, and device f
 - Port motion and rendering separately. A texture-driven mesh is a valid renderer for the full solver.
 - Shader export includes original blocks. It does not supply an engine's uniforms, matrix conventions, color management, or shader-prefix code.
 - Semi-Lagrangian diffusion, finite pressure iterations, artistic density recovery, and a fixed local domain are deliberate limits of this prototype.
-- There is no 3D buoyancy solve, moving or general triangle-mesh obstacle coupling, MacCormack advection, Wasm solver, WebGPU compute implementation, WebXR path, or certified mobile/VR performance target in 0.3.0.
+- There is no 3D buoyancy solve, moving or general triangle-mesh obstacle coupling, MacCormack advection, Wasm solver, WebGPU compute implementation, WebXR path, or certified mobile/VR performance target in 0.4.0.
 
 ## Credits and reuse
 

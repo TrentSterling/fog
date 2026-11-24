@@ -118,6 +118,15 @@ test('v0.2 CPU, obstacles and shape choices survive a shared link',()=>{
   for(const settings of [{obstacles:'false'},{obstacleCourse:1},{heightMode:'valleySimulation'},{wakeStyle:'unknown'}])rejects(()=>P.validatePreset({...minimal(),settings}));
 });
 
+test('wisp control preserves zero, bounds imports, and defaults old presets safely',()=>{
+  assert.equal(P.validatePreset(minimal()).settings.wispStrength,1);
+  for(const [input,expected] of [[0,0],[.65,.65],[-3,0],[9,1.5]]){
+    const preset=P.validatePreset({...minimal(),settings:{wispStrength:input}});
+    assert.equal(P.decodeHash(P.encodeHash(preset)).settings.wispStrength,expected);
+  }
+  for(const bad of [NaN,Infinity,'1',null])rejects(()=>P.validatePreset({...minimal(),settings:{wispStrength:bad}}));
+});
+
 
 test('three-way view keeps its selected card on a visible backend',()=>{
   const preset=P.validatePreset({...minimal(),view:{mode:'cpu',layout:'triple'}});

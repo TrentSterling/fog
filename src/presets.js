@@ -18,7 +18,7 @@
     pressure:18,vorticity:.38,resolution:128,terrain:'flat',lighting:'reference',environment:'reference',
     paused:false,quality:'balanced',raySteps:32,renderScale:.8,wireframe:false,debug:'beauty',meshLayers:1,
     obstacles:true,obstacleCourse:false,wakeStyle:'paired',densityProfile:'billows',heightMode:'world',
-    detailStrength:1,heightShear:1,lightingModel:'directional',cpuExecution:'worker'
+    detailStrength:1,heightShear:1,wispStrength:1,lightingModel:'directional',cpuExecution:'worker'
   });
   const DEFAULT_VIEW = Object.freeze({
     mode:'fluid',renderer:'raymarch',layout:'single',compareMode:'hybrid',compareRenderer:'same',actorCount:1,auto:true
@@ -32,7 +32,7 @@
   const NUMBERS = Object.freeze({
     density:[0,2.2],height:[.15,2.8],radius:[.35,2.7],strength:[0,2.5],swirl:[0,2.5],
     persistence:[.6,12],wind:[0,2],pressure:[2,32,true],vorticity:[0,1.8],raySteps:[8,48,true],renderScale:[.3,1],
-    detailStrength:[0,1.5],heightShear:[0,1.5]
+    detailStrength:[0,1.5],heightShear:[0,1.5],wispStrength:[0,1.5]
   });
   const SETTING_ENUMS = Object.freeze({
     terrain:['flat','hills'],lighting:['reference','day','dusk','night'],environment:['reference','forest'],

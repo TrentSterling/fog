@@ -2,15 +2,24 @@
 
 Interactive ground fog you can take apart. Analytical motion, Hybrid, GPU fluids, and CPU fluids share a test world and interchangeable mesh and volume renderers.
 
-**Version 0.3.0** · WebGL 2 · Three.js r180 · MIT
+**Version 0.4.0** · WebGL 2 · Three.js r180 · MIT
 
-[Release destination](https://tront.xyz/fog/) · [Standalone HTML destination](https://tront.xyz/fog/FogLab.html) · [How it works](docs/how-it-works.md) · [Changelog](CHANGELOG.md) · [Credits](CREDITS.md)
+[Live demo](https://tront.xyz/fog/) · [Standalone HTML](https://tront.xyz/fog/FogLab.html) · [How it works](docs/how-it-works.md) · [Changelog](CHANGELOG.md) · [Credits](CREDITS.md)
 
 ![Gold mannequin walking through reactive ground fog on the neutral test stage](assets/foglab-preview.png)
 
 *Preview captured from the actual Three.js scene and shaders through native software OpenGL.*
 
-## New in 0.3
+## New in 0.4
+
+- **Finer, irregular wisps inside the existing fog banks.** A shallow, height-varying detail field erodes tenuous areas without changing the transported simulation field or shrinking the large banks into granular patches.
+- **Filtering for low camera angles.** Detail sampling accounts for the distance between ray samples, reducing the repeated curtains and fine banding rejected during the visual review.
+- **A visible Wisp detail slider.** Start at 1. Set it to 0 for the smoother rendering, or tune it while paused to compare the same simulation state. The control survives exported presets and shared links.
+- **A reproducible visual gauntlet.** Candidate generators, anonymous image shuffling, native rendering, and motion capture are saved under [scripts/visual](scripts/visual). [The review record](docs/validation/wisps/README.md) includes rejected directions and independent blind critiques.
+
+The default remains 128² simulation, 32 ray samples, and 80% fog render scale. The new detail uses the existing atlas and adds no simulation passes or render targets. Its extra shader sampling still has a cost; measure frame time on your device. The broad bank recipe, solvers, worker, shared tick scheduling, world ceiling, and credits are retained.
+
+## Included since 0.3
 
 - **CPU fluids use a Web Worker by default when selected.** The same typed-array solver runs away from the main thread, while camera movement and drawing continue. An explicit main-thread option remains available for comparison.
 - **Matched simulation ticks in CPU / GPU comparisons.** Each shared input batch completes on both backends before the next state is drawn. While the worker is busy, panes show the previous completed tick.
@@ -18,7 +27,7 @@ Interactive ground fog you can take apart. Analytical motion, Hybrid, GPU fluids
 - **Safe reset and fallback.** Reset generations reject stale worker results. If worker execution fails or is unavailable, the app visibly switches to the main-thread solver and restarts all fields together.
 - **Visible credits and complete offline notices.** The Credits panel includes the original video, technical references, development acknowledgments, and the full FogLab and Three.js MIT licenses.
 
-The worker source is embedded in the standalone HTML. No worker file, server, or runtime download is required. This release changes execution and scheduling; the fog shaders and established visual controls are retained. Moving the solver to another thread is a responsiveness improvement to measure on your device, not a guaranteed increase in simulation or display frame rate.
+The worker source is embedded in the standalone HTML. No worker file, server, or runtime download is required. The 0.3 release changed execution and scheduling while retaining its established visual appearance. Moving the solver to another thread is a responsiveness improvement to measure on your device, not a guaranteed increase in simulation or display frame rate.
 
 ## Included since 0.2
 
@@ -30,6 +39,7 @@ The worker source is embedded in the standalone HTML. No worker file, server, or
 
 ## What to try
 
+- **Judge the wisps.** Pause and move Wisp detail between 0 and 1. Keep the camera and density fixed to compare the same completed field.
 - **Compare the motion.** Keep the mesh renderer selected and switch between Analytical, Hybrid, and Stable fluids. Use A/B or All three to compare the same walking path and camera.
 - **Compare the rendering.** Keep Stable fluids selected and switch between Mesh, Raymarch, and Layered. The simulation is independent of the renderer.
 - **Inspect the mechanism.** Pause, single-step, switch to density or velocity, and enable wireframe. Pressure and curl inspection belong to the fluid backend.
@@ -122,16 +132,6 @@ Shader export produces the original GLSL blocks, not a ready-made Unity package.
 
 ## Publishing
 
-The public project destination is `https://tront.xyz/fog/`. **Initial Pages setup is pending; the destination links are not a verified live deployment.** GitHub Pages should serve the generated `dist` directory for this repository. Asset paths must continue to work beneath `/fog/` and when the standalone file is opened locally.
+The project is published at `https://tront.xyz/fog/`. The [branch publishing workflow](.github/workflows/gh-pages-branch.yml) runs the tests, builds the self-contained files, checks packaging, and commits the generated assets to `gh-pages`. GitHub Pages publishes that branch's root. Source stays on `main`; generated hosting files stay on `gh-pages`.
 
-The workflow tests and builds the release, then checks the repository's Pages configuration. If Pages is disabled or its source is not **GitHub Actions**, the build succeeds, deployment is skipped, and the workflow summary explains the setup step.
-
-For first publication, open the repository's [**Settings → Pages**](https://github.com/TrentSterling/fog/settings/pages), choose **GitHub Actions** as the source under **Build and deployment**, then manually run **Build and publish FogLab** from the Actions tab. After that setup, pushes to `main` deploy automatically. Check the deploy job's result and the served `build.json` version for publication status. This is GitHub's documented [custom-workflow publishing path](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site#publishing-with-a-custom-github-actions-workflow).
-
-`tront.xyz` is already configured at the account/root site. Project sites [inherit that custom domain](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/about-custom-domains-and-github-pages#using-a-custom-domain-across-multiple-repositories). **Do not add a project `CNAME` or change the root domain configuration for this release.** No application server is required.
-
-## Credits and license
-
-FogLab by **[Trent Sterling / Tront](https://tront.xyz/)**. Original code and procedural assets: copyright 2026 Trent Sterling, [MIT](LICENSE). Three.js r180 retains its own complete MIT notice in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-
-[CREDITS.md](CREDITS.md) acknowledges the original ground-fog video, Stam, Harris, Fedkiw and coauthors, Bridson and coauthors, the rendering references, and development assistance. Open **Credits** in the demo to read the reference list and both full MIT notices offline. The video and linked publications retain their own rights and are not included in the downloadable application.
+A source push is only the first step. Check both the publishing workflow and GitHub's Pages deployment, then inspect the served [build.json](https://tront.xyz/fog/build.json) version and HTML hash. The older direct-Actions workflow remains available; it only deploys when the repository is explicitly configured for that source. It is not the active branch-publishing route.
