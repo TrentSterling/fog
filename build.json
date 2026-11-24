@@ -1,9 +1,9 @@
 {
   "name": "FogLab",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "three": "r180",
-  "htmlBytes": 2872586,
-  "sha256": "d50f507399d302e7d4a0c3789e8b9404a55b64882d204be655859737e11473b8",
+  "htmlBytes": 2938318,
+  "sha256": "002b6ac4c84a4715e165f1b886c5b0af26c2e559542deef70e0b9c150f652c3d",
   "modules": [
     "src/presets.js",
     "src/fixed-step.js",
